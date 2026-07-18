@@ -1,21 +1,13 @@
 const {
   SlashCommandBuilder,
   EmbedBuilder,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   PermissionFlagsBits,
 } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-
-const stockPath = path.join(__dirname, '..', 'stock.json');
-
-function readStock() {
-  return JSON.parse(fs.readFileSync(stockPath, 'utf-8'));
-}
-
-function writeStock(data) {
-  data.lastUpdated = new Date().toISOString();
-  fs.writeFileSync(stockPath, JSON.stringify(data, null, 2));
-}
+const { getStock, saveStock } = require('../utils/stockManager');
 
 function formatPrice(n) {
   return `$${n.toLocaleString()}`;
@@ -31,85 +23,147 @@ function buildLines(fruits) {
     .join('\n\n');
 }
 
-// Build choices from stock.json at load time
-const stockData = readStock();
-const allFruits = [
-  ...stockData.normal.map(f => ({ name: `🌍 ${f.name} (Normal)`, value: `normal::${f.name}` })),
-  ...stockData.mirage.map(f => ({ name: `🌙 ${f.name} (Mirage)`, value: `mirage::${f.name}` })),
-];
-
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('setstock')
-    .setDescription('Update a fruit\'s stock status and post the updated stock to this channel')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(opt =>
-      opt
-        .setName('fruit')
-        .setDescription('The fruit to update')
-        .setRequired(true)
-        .addChoices(...allFruits)
-    )
-    .addBooleanOption(opt =>
-      opt
-        .setName('instock')
-        .setDescription('Is this fruit currently in stock?')
-        .setRequired(true)
-    ),
+    .setDescription('Update the stock for this server')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction) {
-    const raw = interaction.options.getString('fruit');      // e.g. "normal::Flame"
-    const inStock = interaction.options.getBoolean('instock');
+    const guildId = interaction.guildId;
+    const stock   = getStock(guildId);
 
-    const [dealer, fruitName] = raw.split('::');
+    // ── Step 1: Pick a fruit ────────────────────────────────────────────────
+    const fruitOptions = [
+      ...stock.normal.map(f => ({
+        label: `🌍 ${f.name}`,
+        description: `Normal • ${formatPrice(f.price)} • ${f.inStock ? 'In Stock' : 'Out of Stock'}`,
+        value: `normal::${f.name}`,
+        emoji: f.emoji,
+      })),
+      ...stock.mirage.map(f => ({
+        label: `🌙 ${f.name}`,
+        description: `Mirage • ${formatPrice(f.price)} • ${f.inStock ? 'In Stock' : 'Out of Stock'}`,
+        value: `mirage::${f.name}`,
+        emoji: f.emoji,
+      })),
+    ];
 
-    // Load fresh from disk, update, write back
-    const stock = readStock();
-    const list = stock[dealer];
-    const fruit = list.find(f => f.name === fruitName);
+    const selectRow = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId('setstock_fruit')
+        .setPlaceholder('🍎 Pick a fruit to update...')
+        .addOptions(fruitOptions)
+    );
 
-    if (!fruit) {
-      return interaction.reply({
-        content: `❌ Could not find **${fruitName}** in the **${dealer}** stock list.`,
-        ephemeral: true,
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle('📦 Set Stock — Step 1 of 2')
+          .setDescription('Which fruit do you want to update?')
+          .setColor(0xFFA500)
+          .setFooter({ text: 'Times out in 60 seconds' }),
+      ],
+      components: [selectRow],
+      ephemeral: true,
+    });
+
+    // ── Wait for fruit selection ────────────────────────────────────────────
+    let fruitInteraction;
+    try {
+      fruitInteraction = await interaction.fetchReply().then(() =>
+        interaction.channel.awaitMessageComponent({
+          filter: i => i.customId === 'setstock_fruit' && i.user.id === interaction.user.id,
+          time: 60_000,
+        })
+      );
+    } catch {
+      return interaction.editReply({
+        embeds: [new EmbedBuilder().setColor(0xED4245).setDescription('⏱️ Timed out. Run `/setstock` again.')],
+        components: [],
       });
     }
 
+    const [dealer, fruitName] = fruitInteraction.values[0].split('::');
+    const fruitList = stock[dealer];
+    const fruit     = fruitList.find(f => f.name === fruitName);
+
+    // ── Step 2: In stock or not? ────────────────────────────────────────────
+    const buttonRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('setstock_yes')
+        .setLabel('✅  In Stock')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('setstock_no')
+        .setLabel('❌  Out of Stock')
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    await fruitInteraction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle('📦 Set Stock — Step 2 of 2')
+          .setDescription(`Is ${fruit.emoji} **${fruit.name}** currently in stock?`)
+          .setColor(0xFFA500)
+          .setFooter({ text: 'Times out in 60 seconds' }),
+      ],
+      components: [buttonRow],
+    });
+
+    // ── Wait for Yes / No button ────────────────────────────────────────────
+    let stockInteraction;
+    try {
+      stockInteraction = await interaction.channel.awaitMessageComponent({
+        filter: i =>
+          (i.customId === 'setstock_yes' || i.customId === 'setstock_no') &&
+          i.user.id === interaction.user.id,
+        time: 60_000,
+      });
+    } catch {
+      return interaction.editReply({
+        embeds: [new EmbedBuilder().setColor(0xED4245).setDescription('⏱️ Timed out. Run `/setstock` again.')],
+        components: [],
+      });
+    }
+
+    const inStock   = stockInteraction.customId === 'setstock_yes';
     const wasInStock = fruit.inStock;
-    fruit.inStock = inStock;
-    writeStock(stock);
+    fruit.inStock   = inStock;
+    saveStock(guildId, stock);
 
-    // Re-read to get updated lastUpdated
-    const updated = readStock();
-    const updatedAt = new Date(updated.lastUpdated).toUTCString();
+    const updatedStock = getStock(guildId);
+    const updatedAt    = new Date(updatedStock.lastUpdated).toUTCString();
 
-    const statusChange = `${wasInStock ? '✅' : '❌'} → ${inStock ? '✅' : '❌'}`;
-
-    // Full stock embed for the channel
+    // ── Post updated stock embed to the channel ─────────────────────────────
     const stockEmbed = new EmbedBuilder()
       .setTitle('📦 Blox Fruits Stock')
       .setColor(0xFFA500)
       .addFields(
-        { name: '🌍 Normal Stock', value: buildLines(updated.normal), inline: false },
-        { name: '\u200B', value: '\u200B', inline: false },
-        { name: '🌙 Mirage Stock', value: buildLines(updated.mirage), inline: false }
+        { name: '🌍 Normal Stock', value: buildLines(updatedStock.normal), inline: false },
+        { name: '\u200B',          value: '\u200B',                         inline: false },
+        { name: '🌙 Mirage Stock', value: buildLines(updatedStock.mirage),  inline: false },
       )
       .setFooter({ text: `Last updated • ${updatedAt}` })
       .setTimestamp();
 
-    // Confirmation embed (ephemeral, only visible to the admin)
-    const confirmEmbed = new EmbedBuilder()
-      .setTitle('✏️ Stock Updated')
-      .setColor(inStock ? 0x57F287 : 0xED4245)
-      .addFields(
-        { name: 'Fruit',   value: `${fruit.emoji} **${fruit.name}**`, inline: true },
-        { name: 'Dealer',  value: dealer === 'normal' ? '🌍 Normal' : '🌙 Mirage', inline: true },
-        { name: 'Status',  value: statusChange, inline: true },
-      )
-      .setTimestamp();
-
-    // Send public stock embed to the channel, then send ephemeral confirmation
     await interaction.channel.send({ embeds: [stockEmbed] });
-    await interaction.reply({ embeds: [confirmEmbed], ephemeral: true });
+
+    // ── Dismiss the ephemeral prompt with a confirmation ───────────────────
+    const statusChange = `${wasInStock ? '✅' : '❌'} → ${inStock ? '✅' : '❌'}`;
+
+    await stockInteraction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle('✅ Stock Updated!')
+          .setColor(inStock ? 0x57F287 : 0xED4245)
+          .addFields(
+            { name: 'Fruit',  value: `${fruit.emoji} **${fruit.name}**`,               inline: true },
+            { name: 'Dealer', value: dealer === 'normal' ? '🌍 Normal' : '🌙 Mirage', inline: true },
+            { name: 'Status', value: statusChange,                                      inline: true },
+          ),
+      ],
+      components: [],
+    });
   },
 };

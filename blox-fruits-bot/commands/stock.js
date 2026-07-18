@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const stock = require('../stock.json');
+const { getStock } = require('../utils/stockManager');
 
 function formatPrice(n) {
   return `$${n.toLocaleString()}`;
@@ -7,10 +7,12 @@ function formatPrice(n) {
 
 function buildLines(fruits) {
   if (!fruits || fruits.length === 0) return '_No fruits listed._';
-  return fruits.map(f => {
-    const status = f.inStock ? '✅' : '❌';
-    return `${status} ${f.emoji} **${f.name}** *(${f.type})*\n　💰 ${formatPrice(f.price)} | 💎 R$${f.robuxPrice.toLocaleString()}`;
-  }).join('\n\n');
+  return fruits
+    .map(f => {
+      const status = f.inStock ? '✅' : '❌';
+      return `${status} ${f.emoji} **${f.name}** *(${f.type})*\n　💰 ${formatPrice(f.price)} | 💎 R$${f.robuxPrice.toLocaleString()}`;
+    })
+    .join('\n\n');
 }
 
 module.exports = {
@@ -21,14 +23,15 @@ module.exports = {
       opt.setName('type')
         .setDescription('Which stock to view')
         .addChoices(
-          { name: '🌍 Normal',    value: 'normal' },
-          { name: '🌙 Mirage',    value: 'mirage' },
-          { name: '📋 All',       value: 'all' }
+          { name: '🌍 Normal', value: 'normal' },
+          { name: '🌙 Mirage', value: 'mirage' },
+          { name: '📋 All',    value: 'all'    }
         )
     ),
 
   async execute(interaction) {
-    const type = interaction.options.getString('type') ?? 'all';
+    const type    = interaction.options.getString('type') ?? 'all';
+    const stock   = getStock(interaction.guildId);
     const updated = new Date(stock.lastUpdated).toUTCString();
 
     const embed = new EmbedBuilder()
@@ -44,9 +47,9 @@ module.exports = {
       embed
         .setTitle('📦 Blox Fruits Stock')
         .addFields(
-          { name: '🌍 Normal Stock',   value: buildLines(stock.normal), inline: false },
-          { name: '\u200B',            value: '\u200B',                 inline: false },
-          { name: '🌙 Mirage Stock',   value: buildLines(stock.mirage), inline: false }
+          { name: '🌍 Normal Stock', value: buildLines(stock.normal), inline: false },
+          { name: '\u200B',          value: '\u200B',                 inline: false },
+          { name: '🌙 Mirage Stock', value: buildLines(stock.mirage), inline: false }
         );
     }
 

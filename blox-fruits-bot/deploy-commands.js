@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const { REST, Routes } = require('discord.js');
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 
 const { TOKEN, CLIENT_ID, GUILD_ID } = process.env;
@@ -26,20 +26,22 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
   try {
-    console.log(`\n🔄 Registering ${commands.length} slash command(s)...`);
+    console.log(`\n🔄 Registering ${commands.length} command(s)...`);
 
     if (GUILD_ID) {
+      // Guild-specific: instant (dev/testing)
       const data = await rest.put(
         Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
         { body: commands }
       );
       console.log(`✅ Registered ${data.length} command(s) to guild ${GUILD_ID} (instant)`);
     } else {
+      // Global: works in every server the bot is in (up to 1 hour to propagate)
       const data = await rest.put(
         Routes.applicationCommands(CLIENT_ID),
         { body: commands }
       );
-      console.log(`✅ Registered ${data.length} command(s) globally (up to 1 hour to appear)`);
+      console.log(`✅ Registered ${data.length} command(s) globally`);
     }
   } catch (err) {
     console.error('[ERROR]', err.message);
