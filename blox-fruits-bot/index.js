@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 
 // ── Validate env ──────────────────────────────────────────────────────────────
@@ -14,11 +14,9 @@ if (!process.env.TOKEN) {
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.commands = new Collection();
 
-// ── Load commands from /commands ──────────────────────────────────────────────
+// ── Load commands ─────────────────────────────────────────────────────────────
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
-
-for (const file of commandFiles) {
+for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) {
   const command = require(path.join(commandsPath, file));
   if (command.data && command.execute) {
     client.commands.set(command.data.name, command);
@@ -28,14 +26,27 @@ for (const file of commandFiles) {
   }
 }
 
+// ── Load events ───────────────────────────────────────────────────────────────
+const eventsPath = path.join(__dirname, 'events');
+if (fs.existsSync(eventsPath)) {
+  for (const file of fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'))) {
+    const event = require(path.join(eventsPath, file));
+    const handler = (...args) => event.execute(...args, client);
+    event.once
+      ? client.once(event.name, handler)
+      : client.on(event.name, handler);
+    console.log(`[EVT] Loaded ${event.name}`);
+  }
+}
+
 // ── Ready ─────────────────────────────────────────────────────────────────────
 client.once(Events.ClientReady, c => {
   console.log(`\n✅ Logged in as ${c.user.tag}`);
-  console.log(`📦 Commands loaded: ${client.commands.size}`);
-  c.user.setActivity('🍎 Tracking Blox Fruits Stock', { type: 3 }); // Watching
+  console.log(`📦 Commands: ${client.commands.size} | Events: ${fs.existsSync(eventsPath) ? fs.readdirSync(eventsPath).filter(f => f.endsWith('.js')).length : 0}`);
+  c.user.setActivity('🍎 Tracking Blox Fruits Stock', { type: 3 });
 });
 
-// ── Handle slash commands ─────────────────────────────────────────────────────
+// ── Slash command interactions ────────────────────────────────────────────────
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
 

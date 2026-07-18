@@ -7,5 +7,23 @@
     "robuxPrice": 50,
     "emoji": "💣",
     "addedAt": "2026-07-18T10:35:16.531Z"
+  },
+  {
+    "name": "Chop",
+    "type": "Natural",
+    "rarity": "Common",
+    "price": 30000,
+    "robuxPrice": 100,
+    "emoji": "🪓",
+    "addedAt": "2026-07-18T10:38:53.455Z"
+  },
+  {
+    "name": "Buddha",
+    "type": "Beast",
+    "rarity": "Rare",
+    "price": 1500000,
+    "robuxPrice": 1700,
+    "emoji": "☯️",
+    "addedAt": "2026-07-18T10:40:02.154Z"
   }
 ]

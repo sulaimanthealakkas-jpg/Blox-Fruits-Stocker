@@ -3,16 +3,11 @@ const {
   EmbedBuilder,
   ActionRowBuilder,
   StringSelectMenuBuilder,
+  MessageFlags,
 } = require('discord.js');
 const { getInventory, removeFruit } = require('../utils/inventoryManager');
 
-const RARITY_COLOR = {
-  Common:    0x95A5A6,
-  Uncommon:  0x2ECC71,
-  Rare:      0x3498DB,
-  Legendary: 0xF39C12,
-  Mythical:  0xE74C3C,
-};
+const RARITY_COLOR = { Common: 0x95A5A6, Uncommon: 0x2ECC71, Rare: 0x3498DB, Legendary: 0xF39C12, Mythical: 0xE74C3C };
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -24,16 +19,11 @@ module.exports = {
 
     if (inv.length === 0) {
       return interaction.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0xED4245)
-            .setDescription('❌ Your inventory is empty — nothing to remove.'),
-        ],
-        ephemeral: true,
+        embeds: [new EmbedBuilder().setColor(0xED4245).setDescription('❌ Your inventory is empty — nothing to remove.')],
+        flags: MessageFlags.Ephemeral,
       });
     }
 
-    // Deduplicate display but allow removing any occurrence
     const options = inv.slice(0, 25).map((f, i) => ({
       label: f.name,
       description: `${f.rarity} ${f.type} • $${f.price.toLocaleString()}`,
@@ -41,14 +31,7 @@ module.exports = {
       emoji: f.emoji,
     }));
 
-    const selectRow = new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId('removeitem_pick')
-        .setPlaceholder('Pick a fruit to remove...')
-        .addOptions(options)
-    );
-
-    const message = await interaction.reply({
+    await interaction.reply({
       embeds: [
         new EmbedBuilder()
           .setTitle('🗑️ Remove Item')
@@ -56,10 +39,15 @@ module.exports = {
           .setColor(0xED4245)
           .setFooter({ text: 'Times out in 60 seconds' }),
       ],
-      components: [selectRow],
-      ephemeral: true,
-      fetchReply: true,
+      components: [
+        new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder().setCustomId('removeitem_pick').setPlaceholder('Pick a fruit to remove...').addOptions(options)
+        ),
+      ],
+      flags: MessageFlags.Ephemeral,
     });
+
+    const message = await interaction.fetchReply();
 
     const collector = message.createMessageComponentCollector({
       filter: i => i.user.id === interaction.user.id,
@@ -67,11 +55,9 @@ module.exports = {
     });
 
     collector.on('collect', async i => {
-      const idx    = parseInt(i.values[0]);
-      const fruit  = inv[idx];
+      const fruit = inv[parseInt(i.values[0])];
       removeFruit(interaction.guildId, interaction.user.id, fruit.name);
       collector.stop();
-
       await i.update({
         embeds: [
           new EmbedBuilder()

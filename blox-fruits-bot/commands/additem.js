@@ -3,40 +3,26 @@ const {
   EmbedBuilder,
   ActionRowBuilder,
   StringSelectMenuBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  MessageFlags,
 } = require('discord.js');
-const fruits = require('../data/fruits.json');
+const fruits    = require('../data/fruits.json');
 const { addFruit } = require('../utils/inventoryManager');
 
-const RARITY_COLOR = {
-  Common:    0x95A5A6,
-  Uncommon:  0x2ECC71,
-  Rare:      0x3498DB,
-  Legendary: 0xF39C12,
-  Mythical:  0xE74C3C,
-};
-
-// Discord limits select menus to 25 options — split into pages by rarity
+const RARITY_COLOR = { Common: 0x95A5A6, Uncommon: 0x2ECC71, Rare: 0x3498DB, Legendary: 0xF39C12, Mythical: 0xE74C3C };
 const GROUPS = ['Mythical', 'Legendary', 'Rare', 'Uncommon', 'Common'];
 
 function optionsForGroup(rarity) {
-  return fruits
-    .filter(f => f.rarity === rarity)
-    .map(f => ({
-      label: `${f.name}`,
-      description: `${f.type} • $${f.price.toLocaleString()}`,
-      value: f.name,
-      emoji: f.emoji,
-    }));
+  return fruits.filter(f => f.rarity === rarity).map(f => ({
+    label: f.name, description: `${f.type} • $${f.price.toLocaleString()}`, value: f.name, emoji: f.emoji,
+  }));
 }
 
 function rarityButtons(active) {
-  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
   return new ActionRowBuilder().addComponents(
     GROUPS.map(r =>
-      new ButtonBuilder()
-        .setCustomId(`rar_${r}`)
-        .setLabel(r)
-        .setStyle(r === active ? ButtonStyle.Primary : ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(`rar_${r}`).setLabel(r).setStyle(r === active ? ButtonStyle.Primary : ButtonStyle.Secondary)
     )
   );
 }
@@ -56,7 +42,7 @@ module.exports = {
         .addOptions(optionsForGroup(rarity))
     );
 
-    const message = await interaction.reply({
+    await interaction.reply({
       embeds: [
         new EmbedBuilder()
           .setTitle('🎒 Add Item — Pick a Fruit')
@@ -65,9 +51,10 @@ module.exports = {
           .setFooter({ text: 'Times out in 60 seconds' }),
       ],
       components: [rarityButtons(rarity), selectRow()],
-      ephemeral: true,
-      fetchReply: true,
+      flags: MessageFlags.Ephemeral,
     });
+
+    const message = await interaction.fetchReply();
 
     const collector = message.createMessageComponentCollector({
       filter: i => i.user.id === interaction.user.id,
@@ -75,7 +62,6 @@ module.exports = {
     });
 
     collector.on('collect', async i => {
-      // Rarity filter button
       if (i.customId.startsWith('rar_')) {
         rarity = i.customId.replace('rar_', '');
         await i.update({
@@ -91,13 +77,10 @@ module.exports = {
         return;
       }
 
-      // Fruit selected
       if (i.customId === 'additem_pick') {
-        const name   = i.values[0];
-        const fruit  = fruits.find(f => f.name === name);
+        const fruit = fruits.find(f => f.name === i.values[0]);
         addFruit(interaction.guildId, interaction.user.id, fruit);
         collector.stop();
-
         await i.update({
           embeds: [
             new EmbedBuilder()
@@ -105,8 +88,8 @@ module.exports = {
               .setColor(RARITY_COLOR[fruit.rarity])
               .setDescription(`${fruit.emoji} **${fruit.name}** has been added to your inventory.`)
               .addFields(
-                { name: '✨ Rarity', value: fruit.rarity,  inline: true },
-                { name: '🔮 Type',   value: fruit.type,    inline: true },
+                { name: '✨ Rarity', value: fruit.rarity, inline: true },
+                { name: '🔮 Type',   value: fruit.type,   inline: true },
               ),
           ],
           components: [],
