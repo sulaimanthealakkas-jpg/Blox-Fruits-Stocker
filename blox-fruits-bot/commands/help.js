@@ -1,49 +1,28 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
-const commands = [
-  {
-    name: '/stock',
-    description: 'View the current Blox Fruits stock',
-    usage: '/stock [type]',
-    example: '/stock type:mirage',
-  },
-  {
-    name: '/ping',
-    description: 'Check the bot\'s latency and response time',
-    usage: '/ping',
-    example: '/ping',
-  },
-  {
-    name: '/help',
-    description: 'Show this help menu with all available commands',
-    usage: '/help',
-    example: '/help',
-  },
-];
-
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('help')
-    .setDescription('View all available bot commands'),
+    .setDescription('View all available commands'),
 
   async execute(interaction) {
-    const fields = commands.map((cmd) => ({
-      name: cmd.name,
-      value: [
-        `📝 ${cmd.description}`,
-        `**Usage:** \`${cmd.usage}\``,
-        `**Example:** \`${cmd.example}\``,
-      ].join('\n'),
-      inline: false,
-    }));
-
     const embed = new EmbedBuilder()
-      .setTitle('📖 Blox Fruits Stock Bot — Help')
-      .setDescription(
-        'A bot that tracks Blox Fruits stock from both the **Normal** and **Mirage** dealers.\n\u200B'
-      )
-      .addFields(...fields)
+      .setTitle('📖 Blox Fruits Stock Bot — Commands')
       .setColor(0x7C3AED)
+      .addFields(
+        {
+          name: '`/stock [type]`',
+          value: 'View fruit stock.\n**Choices:** `normal` · `mirage` · `all` *(default)*',
+        },
+        {
+          name: '`/ping`',
+          value: 'Check the bot\'s response time.',
+        },
+        {
+          name: '`/help`',
+          value: 'Show this command list.',
+        }
+      )
       .setFooter({
         text: `Requested by ${interaction.user.username}`,
         iconURL: interaction.user.displayAvatarURL({ dynamic: true }),

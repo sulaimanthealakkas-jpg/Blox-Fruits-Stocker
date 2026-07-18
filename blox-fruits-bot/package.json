@@ -1,7 +1,7 @@
 {
   "name": "blox-fruits-stock-bot",
   "version": "1.0.0",
-  "description": "A Discord.js v14 Blox Fruits stock bot",
+  "description": "Discord.js v14 Blox Fruits stock bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
