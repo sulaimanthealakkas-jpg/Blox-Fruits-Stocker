@@ -1,0 +1,39 @@
+{
+  "lastUpdated": "2024-01-01T00:00:00.000Z",
+  "normal": [
+    {
+      "name": "Flame",
+      "type": "Elemental",
+      "price": 250000,
+      "robuxPrice": 550,
+      "inStock": true,
+      "emoji": "🔥"
+    },
+    {
+      "name": "Ice",
+      "type": "Elemental",
+      "price": 350000,
+      "robuxPrice": 750,
+      "inStock": true,
+      "emoji": "❄️"
+    }
+  ],
+  "mirage": [
+    {
+      "name": "Dragon",
+      "type": "Beast",
+      "price": 3500000,
+      "robuxPrice": 2600,
+      "inStock": true,
+      "emoji": "🐉"
+    },
+    {
+      "name": "Leopard",
+      "type": "Beast",
+      "price": 5000000,
+      "robuxPrice": 3000,
+      "inStock": false,
+      "emoji": "🐆"
+    }
+  ]
+}
