@@ -1,0 +1,11 @@
+[
+  {
+    "name": "Bomb",
+    "type": "Natural",
+    "rarity": "Common",
+    "price": 5000,
+    "robuxPrice": 50,
+    "emoji": "💣",
+    "addedAt": "2026-07-18T10:35:16.531Z"
+  }
+]
