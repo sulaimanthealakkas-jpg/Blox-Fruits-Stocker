@@ -42,7 +42,8 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       console.log(`✅ Registered ${data.length} command(s) globally (up to 1 hour to appear)`);
     }
   } catch (err) {
-    console.error('[ERROR] Failed to register commands:', err.message);
+    console.error('[ERROR]', err.message);
+    if (err.rawError) console.error('[DETAIL]', JSON.stringify(err.rawError, null, 2));
     process.exit(1);
   }
 })();
