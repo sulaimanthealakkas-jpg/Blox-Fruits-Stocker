@@ -45,14 +45,21 @@ client.once(Events.ClientReady, async c => {
   console.log(`📦 Commands: ${client.commands.size}`);
   c.user.setActivity('🍎 Tracking Blox Fruits Stock', { type: 3 });
 
-  // Emoji init
   const { initFruitEmojis } = require('./utils/emojiManager');
   await initFruitEmojis(c);
 
-  // Pull live stock immediately, then every 30 minutes
+  // Fetch all guilds into cache before first poll
+  try {
+    await c.guilds.fetch();
+    console.log(`[STOCK] Bot is in ${c.guilds.cache.size} guild(s)`);
+  } catch (e) {
+    console.warn('[STOCK] Could not pre-fetch guilds:', e.message);
+  }
+
+  // Run immediately, then every 30 minutes
   await runStockPoll(c);
   setInterval(() => runStockPoll(c), 30 * 60 * 1000);
-  console.log('[STOCK] Auto-polling every 30 minutes');
+  console.log('[STOCK] Auto-polling every 30 minutes ✅');
 });
 
 // ── Slash commands ────────────────────────────────────────────────────────────
@@ -79,68 +86,88 @@ function stockKey(arr) {
   return arr.map(f => f.name).sort().join(',');
 }
 
+/** Returns all guild IDs the bot knows about:
+ *  - every guild in client.guilds.cache
+ *  - every folder that already exists in data/guilds/ (offline or evicted guilds)
+ */
+function allKnownGuildIds(client) {
+  const ids = new Set(client.guilds.cache.keys());
+  const guildsDir = path.join(__dirname, 'data', 'guilds');
+  if (fs.existsSync(guildsDir)) {
+    for (const entry of fs.readdirSync(guildsDir, { withFileTypes: true })) {
+      if (entry.isDirectory()) ids.add(entry.name);
+    }
+  }
+  return [...ids];
+}
+
 async function runStockPoll(client) {
   const { fetchLiveStock, applyLiveStock } = require('./utils/stockFetcher');
-  const { getConfig }   = require('./utils/configManager');
-  const { getStock }    = require('./utils/stockManager');
+  const { getConfig }     = require('./utils/configManager');
+  const { getStock }      = require('./utils/stockManager');
   const { getFruitEmoji } = require('./utils/emojiManager');
-  const { EmbedBuilder } = require('discord.js');
+  const { EmbedBuilder }  = require('discord.js');
 
   try {
     const live = await fetchLiveStock();
     if (!live) {
-      console.warn('[STOCK] Poll returned no data — will retry next interval');
+      console.warn('[STOCK] Fetch returned nothing — will retry next cycle');
       return;
     }
 
-    const newNormal = stockKey(live.normal);
-    const newMirage = stockKey(live.mirage);
-    const normalChanged = newNormal !== lastNormalKey;
-    const mirageChanged = newMirage !== lastMirageKey;
+    const newNormalKey = stockKey(live.normal);
+    const newMirageKey = stockKey(live.mirage);
+    const firstRun     = lastNormalKey === '' && lastMirageKey === '';
+    const normalChanged = newNormalKey !== lastNormalKey;
+    const mirageChanged = newMirageKey !== lastMirageKey;
 
-    // Always apply to every guild regardless of whether it changed
-    // (ensures guilds that just started up are synced)
-    const firstRun = !lastNormalKey && !lastMirageKey;
-
-    if (!normalChanged && !mirageChanged && !firstRun) {
-      console.log('[STOCK] No change — stock is current');
+    if (!firstRun && !normalChanged && !mirageChanged) {
+      console.log('[STOCK] No change detected — stock matches last check');
       return;
     }
 
-    lastNormalKey = newNormal;
-    lastMirageKey = newMirage;
+    lastNormalKey = newNormalKey;
+    lastMirageKey = newMirageKey;
 
-    const tags = [];
-    if (firstRun)      tags.push('🔄 Initial sync');
-    if (normalChanged && !firstRun) tags.push('🌍 Normal dealer rotated');
-    if (mirageChanged && !firstRun) tags.push('🌙 Mirage dealer rotated');
-
-    console.log(`[STOCK] ${tags.join(' | ')} — Normal: [${live.normal.map(f => f.name).join(', ')}] | Mirage: [${live.mirage.map(f => f.name).join(', ')}]`);
+    // Collect ALL known guild IDs (cache + disk)
+    const guildIds = allKnownGuildIds(client);
+    console.log(`[STOCK] ${firstRun ? 'Initial sync' : 'Change detected'} — applying to ${guildIds.length} guild(s)`);
+    console.log(`[STOCK] Normal: [${live.normal.map(f => f.name).join(', ')}]`);
+    console.log(`[STOCK] Mirage: [${live.mirage.map(f => f.name).join(', ')}]`);
 
     function buildLines(fruits) {
       const inStock = fruits.filter(f => f.inStock);
-      if (!inStock.length) return '_None in stock._';
+      if (!inStock.length) return '_None in stock right now._';
       return inStock
-        .map(f => `${getFruitEmoji(f.name)} **${f.name}** *(${f.type})*\n　💰 $${f.price.toLocaleString()} | 💎 R$${f.robuxPrice.toLocaleString()}`)
+        .map(f =>
+          `${getFruitEmoji(f.name)} **${f.name}** *(${f.type})*\n　💰 $${f.price.toLocaleString()} | 💎 R$${f.robuxPrice.toLocaleString()}`
+        )
         .join('\n\n');
     }
 
-    // Apply to every guild and post to stock channel if configured
-    for (const guild of client.guilds.cache.values()) {
+    for (const guildId of guildIds) {
       try {
-        applyLiveStock(guild.id, live);
+        // Apply live stock to disk — works for every guild ID, even if not in cache
+        applyLiveStock(guildId, live);
+        console.log(`[STOCK] ✅ Applied to guild ${guildId}`);
 
-        // Only post announcement if stock changed (not on first run silent sync)
+        // Only post a Discord announcement if stock actually changed (not first-run silent sync)
         if (firstRun) continue;
 
-        const cfg = getConfig(guild.id);
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) continue; // guild is offline or evicted from cache
+
+        const cfg = getConfig(guildId);
         if (!cfg.stockChannelId) continue;
 
         const channel = guild.channels.cache.get(cfg.stockChannelId);
         if (!channel) continue;
 
-        const updated = getStock(guild.id);
+        const tags = [];
+        if (normalChanged) tags.push('🌍 Normal dealer rotated');
+        if (mirageChanged) tags.push('🌙 Mirage dealer rotated');
 
+        const updated = getStock(guildId);
         const embed = new EmbedBuilder()
           .setTitle('🔄 Blox Fruits Stock Update')
           .setColor(0xFFA500)
@@ -154,13 +181,13 @@ async function runStockPoll(client) {
           .setTimestamp();
 
         await channel.send({ embeds: [embed] });
-        console.log(`[STOCK] Posted update → ${guild.name} #${channel.name}`);
+        console.log(`[STOCK] 📢 Posted to ${guild.name} → #${channel.name}`);
       } catch (gErr) {
-        console.warn(`[STOCK] ${guild.name}:`, gErr.message);
+        console.warn(`[STOCK] Guild ${guildId} error:`, gErr.message);
       }
     }
   } catch (err) {
-    console.error('[STOCK] Poll error:', err.message);
+    console.error('[STOCK] Poll crashed:', err.message);
   }
 }
 

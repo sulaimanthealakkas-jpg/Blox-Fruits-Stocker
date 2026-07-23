@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-18T17:07:20.245Z",
+  "lastUpdated": "2026-07-23T09:49:03.235Z",
   "normal": [
     {
       "name": "Flame",
@@ -14,7 +14,7 @@
       "type": "Elemental",
       "price": 350000,
       "robuxPrice": 750,
-      "inStock": true,
+      "inStock": false,
       "emoji": "❄️"
     },
     {
@@ -46,7 +46,7 @@
       "type": "Elemental",
       "price": 850000,
       "robuxPrice": 1300,
-      "inStock": true,
+      "inStock": false,
       "emoji": "🌊"
     },
     {
@@ -62,8 +62,26 @@
       "type": "Elemental",
       "price": 500000,
       "robuxPrice": 950,
-      "inStock": true,
+      "inStock": false,
       "emoji": "🌫️"
+    },
+    {
+      "name": "Rocket",
+      "type": "Natural",
+      "price": 5000,
+      "robuxPrice": 50,
+      "rarity": "Common",
+      "emoji": "🚀",
+      "inStock": true
+    },
+    {
+      "name": "Spin",
+      "type": "Natural",
+      "price": 7500,
+      "robuxPrice": 75,
+      "rarity": "Common",
+      "emoji": "🌀",
+      "inStock": true
     }
   ],
   "mirage": [
@@ -72,7 +90,7 @@
       "type": "Beast",
       "price": 3500000,
       "robuxPrice": 2600,
-      "inStock": true,
+      "inStock": false,
       "emoji": "🐉"
     },
     {
@@ -88,7 +106,7 @@
       "type": "Beast",
       "price": 4800000,
       "robuxPrice": 2800,
-      "inStock": true,
+      "inStock": false,
       "emoji": "🦊"
     },
     {
@@ -98,6 +116,69 @@
       "robuxPrice": 2100,
       "inStock": false,
       "emoji": "🦕"
+    },
+    {
+      "name": "Rocket",
+      "type": "Natural",
+      "price": 5000,
+      "robuxPrice": 50,
+      "rarity": "Common",
+      "emoji": "🚀",
+      "inStock": true
+    },
+    {
+      "name": "Spin",
+      "type": "Natural",
+      "price": 7500,
+      "robuxPrice": 75,
+      "rarity": "Common",
+      "emoji": "🌀",
+      "inStock": true
+    },
+    {
+      "name": "Blade",
+      "type": "Natural",
+      "price": 30000,
+      "robuxPrice": 100,
+      "rarity": "Common",
+      "emoji": "🪓",
+      "inStock": true
+    },
+    {
+      "name": "Spring",
+      "type": "Natural",
+      "price": 60000,
+      "robuxPrice": 180,
+      "rarity": "Common",
+      "emoji": "🌱",
+      "inStock": true
+    },
+    {
+      "name": "Smoke",
+      "type": "Elemental",
+      "price": 100000,
+      "robuxPrice": 250,
+      "rarity": "Common",
+      "emoji": "💨",
+      "inStock": true
+    },
+    {
+      "name": "Flame",
+      "type": "Elemental",
+      "price": 250000,
+      "robuxPrice": 550,
+      "rarity": "Uncommon",
+      "emoji": "🔥",
+      "inStock": true
+    },
+    {
+      "name": "Rubber",
+      "type": "Natural",
+      "price": 750000,
+      "robuxPrice": 1200,
+      "rarity": "Uncommon",
+      "emoji": "🟡",
+      "inStock": true
     }
   ]
 }
