@@ -10,9 +10,10 @@ const {
   MessageFlags,
 } = require('discord.js');
 
-const allFruits            = require('../data/fruits.json');
-const { buildGuildStock }  = require('../utils/stockManager');
-const { ensureStockRoles } = require('../utils/roleManager');
+const allFruits                         = require('../data/fruits.json');
+const { buildGuildStock }               = require('../utils/stockManager');
+const { ensureStockRoles }              = require('../utils/roleManager');
+const { getFruitEmoji, getSelectEmoji } = require('../utils/emojiManager');
 
 const NORMAL_FRUITS = allFruits.filter(f => ['Common', 'Uncommon', 'Rare'].includes(f.rarity));
 const MIRAGE_FRUITS = allFruits.filter(f => ['Legendary', 'Mythical'].includes(f.rarity));
@@ -21,11 +22,13 @@ const toOption = f => ({
   label:       f.name,
   description: `${f.rarity} ${f.type} • $${f.price.toLocaleString()}`,
   value:       f.name,
-  emoji:       f.emoji,
+  emoji:       getSelectEmoji(f.name),
 });
 
-function formatStock(fruits, inStockNames) {
-  return fruits.map(f => `${inStockNames.includes(f.name) ? '✅' : '❌'} ${f.emoji} ${f.name}`).join('\n') || '_None_';
+function formatInStock(fruits, inStockNames) {
+  const list = fruits.filter(f => inStockNames.includes(f.name));
+  if (!list.length) return '_None_';
+  return list.map(f => `${getFruitEmoji(f.name)} ${f.name}`).join('\n');
 }
 
 module.exports = {
@@ -70,7 +73,6 @@ module.exports = {
 
     let normalInStock = [];
     let mirageInStock = [];
-
     const collector = msg.createMessageComponentCollector({ time: 10 * 60 * 1000 });
 
     collector.on('collect', async i => {
@@ -78,13 +80,12 @@ module.exports = {
         return i.reply({ content: '🔒 Only members with **Manage Server** can run setup.', flags: MessageFlags.Ephemeral });
       }
 
-      // ── Start → Normal select ──────────────────────────────────────────────
       if (i.customId === 'setup_start') {
         await i.update({
           embeds: [
             new EmbedBuilder()
               .setTitle('🌍 Step 1 of 2 — Normal Dealer')
-              .setDescription('Select **all fruits currently in stock** at the Normal dealer.\nLeave blank if none are in stock right now.')
+              .setDescription('Select all fruits **currently in stock** at the Normal dealer.\nLeave blank if none are in stock.')
               .setColor(0x2ECC71)
               .setFooter({ text: 'Step 1 of 2' }),
           ],
@@ -101,14 +102,13 @@ module.exports = {
         });
       }
 
-      // ── Normal selected → Mirage select ───────────────────────────────────
       else if (i.customId === 'setup_normal') {
         normalInStock = i.values;
         await i.update({
           embeds: [
             new EmbedBuilder()
               .setTitle('🌙 Step 2 of 2 — Mirage Dealer')
-              .setDescription('Now select **all fruits currently in stock** at the Mirage dealer.\nLeave blank if none are available right now.')
+              .setDescription('Now select all fruits **currently in stock** at the Mirage dealer.\nLeave blank if none are available.')
               .setColor(0x9B59B6)
               .setFooter({ text: 'Step 2 of 2 • Almost done!' }),
           ],
@@ -125,13 +125,12 @@ module.exports = {
         });
       }
 
-      // ── Mirage selected → build + save + roles ─────────────────────────────
       else if (i.customId === 'setup_mirage') {
         mirageInStock = i.values;
         collector.stop('done');
         await i.deferUpdate();
 
-        const stock      = buildGuildStock(guild.id, normalInStock, mirageInStock);
+        buildGuildStock(guild.id, normalInStock, mirageInStock);
         const allInStock = [...normalInStock, ...mirageInStock];
 
         let rolesCreated = 0;
@@ -146,19 +145,18 @@ module.exports = {
               .setTitle('✅ Stock Setup Complete!')
               .setColor(0x57F287)
               .addFields(
-                { name: '🌍 Normal Stock', value: formatStock(NORMAL_FRUITS, normalInStock), inline: true },
-                { name: '🌙 Mirage Stock', value: formatStock(MIRAGE_FRUITS, mirageInStock), inline: true },
+                { name: '🌍 In Stock — Normal', value: formatInStock(NORMAL_FRUITS, normalInStock), inline: true },
+                { name: '🌙 In Stock — Mirage', value: formatInStock(MIRAGE_FRUITS, mirageInStock), inline: true },
               )
               .setDescription(
                 rolesCreated > 0
-                  ? `📢 **${rolesCreated}** stock-alert role(s) created! Members can self-assign a role to get pinged when that fruit stocks.\n\nUse **/setstock** to update stock anytime, **/stock** to view it.`
-                  : 'Stock saved! Use **/setstock** to update and **/stock** to view.\n\n_Grant me **Manage Roles** to auto-create stock-alert roles._'
+                  ? `📢 **${rolesCreated}** stock-alert role(s) created! Members can self-assign them to get pinged when a fruit restocks.\n\nUse **/setstock** to update, **/stock** to view.`
+                  : 'Stock saved! Use **/setstock** to update and **/stock** to view.\n\n_Grant **Manage Roles** to auto-create stock-alert roles._'
               ),
           ],
           components: [],
         });
-
-        console.log(`[SETUP] "${guild.name}" (${guild.id}) completed setup — ${allInStock.length} in stock, ${rolesCreated} roles created.`);
+        console.log(`[SETUP] "${guild.name}" completed setup — ${allInStock.length} in stock, ${rolesCreated} roles.`);
       }
     });
 

@@ -4,25 +4,21 @@ const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
 const fs   = require('fs');
 const path = require('path');
 
-// ── Validate env ──────────────────────────────────────────────────────────────
 if (!process.env.TOKEN) {
-  console.error('[ERROR] Missing TOKEN in .env — copy .env.example to .env and fill it in.');
+  console.error('[ERROR] Missing TOKEN in .env');
   process.exit(1);
 }
 
-// ── Create client ─────────────────────────────────────────────────────────────
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.commands = new Collection();
 
 // ── Load commands ─────────────────────────────────────────────────────────────
 const commandsPath = path.join(__dirname, 'commands');
 for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) {
-  const command = require(path.join(commandsPath, file));
-  if (command.data && command.execute) {
-    client.commands.set(command.data.name, command);
-    console.log(`[CMD] Loaded /${command.data.name}`);
-  } else {
-    console.warn(`[WARN] Skipping ${file} — missing "data" or "execute".`);
+  const cmd = require(path.join(commandsPath, file));
+  if (cmd.data && cmd.execute) {
+    client.commands.set(cmd.data.name, cmd);
+    console.log(`[CMD] Loaded /${cmd.data.name}`);
   }
 }
 
@@ -32,37 +28,36 @@ if (fs.existsSync(eventsPath)) {
   for (const file of fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'))) {
     const event = require(path.join(eventsPath, file));
     const handler = (...args) => event.execute(...args, client);
-    event.once
-      ? client.once(event.name, handler)
-      : client.on(event.name, handler);
+    event.once ? client.once(event.name, handler) : client.on(event.name, handler);
     console.log(`[EVT] Loaded ${event.name}`);
   }
 }
 
 // ── Ready ─────────────────────────────────────────────────────────────────────
-client.once(Events.ClientReady, c => {
+client.once(Events.ClientReady, async c => {
   console.log(`\n✅ Logged in as ${c.user.tag}`);
-  console.log(`📦 Commands: ${client.commands.size} | Events: ${fs.existsSync(eventsPath) ? fs.readdirSync(eventsPath).filter(f => f.endsWith('.js')).length : 0}`);
+  console.log(`📦 Commands: ${client.commands.size}`);
   c.user.setActivity('🍎 Tracking Blox Fruits Stock', { type: 3 });
+
+  // Upload all fruit images as custom emojis to the home guild
+  const { initFruitEmojis } = require('./utils/emojiManager');
+  await initFruitEmojis(c);
 });
 
-// ── Slash command interactions ────────────────────────────────────────────────
+// ── Slash commands ────────────────────────────────────────────────────────────
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
-
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
-
   try {
     await command.execute(interaction);
   } catch (err) {
     console.error(`[ERROR] /${interaction.commandName}:`, err);
-    const msg = { content: '❌ Something went wrong running this command.', ephemeral: true };
+    const msg = { content: '❌ Something went wrong.', ephemeral: true };
     interaction.replied || interaction.deferred
       ? await interaction.followUp(msg)
       : await interaction.reply(msg);
   }
 });
 
-// ── Login ─────────────────────────────────────────────────────────────────────
 client.login(process.env.TOKEN);

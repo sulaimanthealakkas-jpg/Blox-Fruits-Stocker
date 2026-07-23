@@ -1,19 +1,103 @@
 {
-  "lastUpdated": "2024-01-01T00:00:00.000Z",
+  "lastUpdated": "2026-07-18T17:07:20.245Z",
   "normal": [
-    { "name": "Flame",    "type": "Elemental", "price": 250000,  "robuxPrice": 550,  "inStock": true,  "emoji": "🔥" },
-    { "name": "Ice",      "type": "Elemental", "price": 350000,  "robuxPrice": 750,  "inStock": true,  "emoji": "❄️" },
-    { "name": "Quake",    "type": "Natural",   "price": 1000000, "robuxPrice": 1500, "inStock": false, "emoji": "🌋" },
-    { "name": "Light",    "type": "Elemental", "price": 650000,  "robuxPrice": 1100, "inStock": true,  "emoji": "💡" },
-    { "name": "Shadow",   "type": "Natural",   "price": 2900000, "robuxPrice": 2300, "inStock": false, "emoji": "🌑" },
-    { "name": "Magma",    "type": "Elemental", "price": 850000,  "robuxPrice": 1300, "inStock": true,  "emoji": "🌊" },
-    { "name": "Sand",     "type": "Elemental", "price": 420000,  "robuxPrice": 900,  "inStock": false, "emoji": "🏖️" },
-    { "name": "Dark",     "type": "Elemental", "price": 500000,  "robuxPrice": 950,  "inStock": true,  "emoji": "🌫️" }
+    {
+      "name": "Flame",
+      "type": "Elemental",
+      "price": 250000,
+      "robuxPrice": 550,
+      "inStock": false,
+      "emoji": "🔥"
+    },
+    {
+      "name": "Ice",
+      "type": "Elemental",
+      "price": 350000,
+      "robuxPrice": 750,
+      "inStock": true,
+      "emoji": "❄️"
+    },
+    {
+      "name": "Quake",
+      "type": "Natural",
+      "price": 1000000,
+      "robuxPrice": 1500,
+      "inStock": false,
+      "emoji": "🌋"
+    },
+    {
+      "name": "Light",
+      "type": "Elemental",
+      "price": 650000,
+      "robuxPrice": 1100,
+      "inStock": true,
+      "emoji": "💡"
+    },
+    {
+      "name": "Shadow",
+      "type": "Natural",
+      "price": 2900000,
+      "robuxPrice": 2300,
+      "inStock": false,
+      "emoji": "🌑"
+    },
+    {
+      "name": "Magma",
+      "type": "Elemental",
+      "price": 850000,
+      "robuxPrice": 1300,
+      "inStock": true,
+      "emoji": "🌊"
+    },
+    {
+      "name": "Sand",
+      "type": "Elemental",
+      "price": 420000,
+      "robuxPrice": 900,
+      "inStock": false,
+      "emoji": "🏖️"
+    },
+    {
+      "name": "Dark",
+      "type": "Elemental",
+      "price": 500000,
+      "robuxPrice": 950,
+      "inStock": true,
+      "emoji": "🌫️"
+    }
   ],
   "mirage": [
-    { "name": "Dragon",   "type": "Beast",     "price": 3500000, "robuxPrice": 2600, "inStock": true,  "emoji": "🐉" },
-    { "name": "Leopard",  "type": "Beast",     "price": 5000000, "robuxPrice": 3000, "inStock": false, "emoji": "🐆" },
-    { "name": "Kitsune",  "type": "Beast",     "price": 4800000, "robuxPrice": 2800, "inStock": true,  "emoji": "🦊" },
-    { "name": "T-Rex",    "type": "Beast",     "price": 2500000, "robuxPrice": 2100, "inStock": false, "emoji": "🦕" }
+    {
+      "name": "Dragon",
+      "type": "Beast",
+      "price": 3500000,
+      "robuxPrice": 2600,
+      "inStock": true,
+      "emoji": "🐉"
+    },
+    {
+      "name": "Leopard",
+      "type": "Beast",
+      "price": 5000000,
+      "robuxPrice": 3000,
+      "inStock": false,
+      "emoji": "🐆"
+    },
+    {
+      "name": "Kitsune",
+      "type": "Beast",
+      "price": 4800000,
+      "robuxPrice": 2800,
+      "inStock": true,
+      "emoji": "🦊"
+    },
+    {
+      "name": "T-Rex",
+      "type": "Beast",
+      "price": 2500000,
+      "robuxPrice": 2100,
+      "inStock": false,
+      "emoji": "🦕"
+    }
   ]
 }

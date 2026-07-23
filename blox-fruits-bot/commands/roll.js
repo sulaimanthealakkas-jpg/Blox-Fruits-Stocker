@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const fruits = require('../data/fruits.json');
-const { addFruit } = require('../utils/inventoryManager');
+const allFruits        = require('../data/fruits.json');
+const { addFruit }     = require('../utils/inventoryManager');
+const { getFruitEmoji } = require('../utils/emojiManager');
 
 const RARITY_CONFIG = {
   Common:    { color: 0x95A5A6, chance: 40, stars: '⭐' },
@@ -11,14 +12,14 @@ const RARITY_CONFIG = {
 };
 
 function rollFruit() {
-  const pool = fruits.flatMap(f => Array(RARITY_CONFIG[f.rarity].chance).fill(f));
+  const pool = allFruits.flatMap(f => Array(RARITY_CONFIG[f.rarity].chance).fill(f));
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function spinLine() {
   return Array.from({ length: 3 }, () => {
-    const f = fruits[Math.floor(Math.random() * fruits.length)];
-    return `${f.emoji} ~~${f.name}~~`;
+    const f = allFruits[Math.floor(Math.random() * allFruits.length)];
+    return `${getFruitEmoji(f.name)} ~~${f.name}~~`;
   }).join('  •  ');
 }
 
@@ -37,7 +38,7 @@ module.exports = {
       const remaining = Math.ceil((cooldowns.get(userId) - Date.now()) / 1000);
       if (remaining > 0) {
         return interaction.reply({
-          content: `⏳ Slow down! You can roll again in **${remaining}s**.`,
+          content: `⏳ You can roll again in **${remaining}s**.`,
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -48,6 +49,7 @@ module.exports = {
 
     const result = rollFruit();
     const cfg    = RARITY_CONFIG[result.rarity];
+    const emoji  = getFruitEmoji(result.name);
 
     await interaction.reply({ content: `🎰  **Rolling your fruit...**\n${spinLine()}` });
     await new Promise(r => setTimeout(r, 700));
@@ -59,7 +61,7 @@ module.exports = {
     addFruit(interaction.guildId, userId, result);
 
     const embed = new EmbedBuilder()
-      .setTitle(`${result.emoji}  You rolled **${result.name}**!`)
+      .setTitle(`${emoji}  You rolled **${result.name}**!`)
       .setColor(cfg.color)
       .addFields(
         { name: '✨ Rarity', value: `${cfg.stars} ${result.rarity}`,          inline: true },
@@ -71,7 +73,7 @@ module.exports = {
       .setFooter({ text: `Rolled by ${interaction.user.username} • Added to inventory` })
       .setTimestamp();
 
-    if (result.rarity === 'Mythical')  embed.setDescription('> 🌟 **MYTHICAL ROLL!** Incredibly rare!');
+    if (result.rarity === 'Mythical')       embed.setDescription('> 🌟 **MYTHICAL ROLL!** Incredibly rare!');
     else if (result.rarity === 'Legendary') embed.setDescription('> 🎊 **LEGENDARY!** Nice pull!');
 
     await interaction.editReply({ content: '', embeds: [embed] });

@@ -5,7 +5,8 @@ const {
   StringSelectMenuBuilder,
   MessageFlags,
 } = require('discord.js');
-const { getInventory, removeFruit } = require('../utils/inventoryManager');
+const { getInventory, removeFruit }    = require('../utils/inventoryManager');
+const { getFruitEmoji, getSelectEmoji } = require('../utils/emojiManager');
 
 const RARITY_COLOR = { Common: 0x95A5A6, Uncommon: 0x2ECC71, Rare: 0x3498DB, Legendary: 0xF39C12, Mythical: 0xE74C3C };
 
@@ -24,13 +25,6 @@ module.exports = {
       });
     }
 
-    const options = inv.slice(0, 25).map((f, i) => ({
-      label: f.name,
-      description: `${f.rarity} ${f.type} • $${f.price.toLocaleString()}`,
-      value: String(i),
-      emoji: f.emoji,
-    }));
-
     await interaction.reply({
       embeds: [
         new EmbedBuilder()
@@ -41,14 +35,23 @@ module.exports = {
       ],
       components: [
         new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder().setCustomId('removeitem_pick').setPlaceholder('Pick a fruit to remove...').addOptions(options)
+          new StringSelectMenuBuilder()
+            .setCustomId('removeitem_pick')
+            .setPlaceholder('Pick a fruit to remove...')
+            .addOptions(
+              inv.slice(0, 25).map((f, i) => ({
+                label:       f.name,
+                description: `${f.rarity} ${f.type} • $${f.price.toLocaleString()}`,
+                value:       String(i),
+                emoji:       getSelectEmoji(f.name),
+              }))
+            )
         ),
       ],
       flags: MessageFlags.Ephemeral,
     });
 
     const message = await interaction.fetchReply();
-
     const collector = message.createMessageComponentCollector({
       filter: i => i.user.id === interaction.user.id,
       time: 60_000,
@@ -63,7 +66,7 @@ module.exports = {
           new EmbedBuilder()
             .setTitle('🗑️ Fruit Removed')
             .setColor(RARITY_COLOR[fruit.rarity] ?? 0xFFA500)
-            .setDescription(`${fruit.emoji} **${fruit.name}** has been removed from your inventory.`),
+            .setDescription(`${getFruitEmoji(fruit.name)} **${fruit.name}** has been removed from your inventory.`),
         ],
         components: [],
       });

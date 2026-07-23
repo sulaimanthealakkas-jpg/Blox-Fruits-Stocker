@@ -5,15 +5,16 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require('discord.js');
-const { getStock } = require('../utils/stockManager');
+const { getStock }       = require('../utils/stockManager');
+const { getFruitEmoji }  = require('../utils/emojiManager');
 
 function formatPrice(n) { return `$${n.toLocaleString()}`; }
 
 function buildLines(fruits) {
-  if (!fruits || fruits.length === 0) return '_No fruits listed._';
-  return fruits
-    .filter(f => f.inStock !== undefined)
-    .map(f => `${f.inStock ? '✅' : '❌'} ${f.emoji} **${f.name}** *(${f.type})*\n　💰 ${formatPrice(f.price)} | 💎 R$${f.robuxPrice.toLocaleString()}`)
+  const inStock = fruits.filter(f => f.inStock);
+  if (!inStock.length) return '_None in stock right now._';
+  return inStock
+    .map(f => `${getFruitEmoji(f.name)} **${f.name}** *(${f.type})*\n　💰 ${formatPrice(f.price)} | 💎 R$${f.robuxPrice.toLocaleString()}`)
     .join('\n\n');
 }
 

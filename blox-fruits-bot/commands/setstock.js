@@ -8,16 +8,17 @@ const {
   PermissionFlagsBits,
   MessageFlags,
 } = require('discord.js');
-const { getStock, saveStock } = require('../utils/stockManager');
-const { ensureStockRole }     = require('../utils/roleManager');
+const { getStock, saveStock }         = require('../utils/stockManager');
+const { ensureStockRole }             = require('../utils/roleManager');
+const { getFruitEmoji, getSelectEmoji } = require('../utils/emojiManager');
 
 function formatPrice(n) { return `$${n.toLocaleString()}`; }
 
 function buildLines(fruits) {
-  if (!fruits || fruits.length === 0) return '_No fruits listed._';
-  return fruits
-    .filter(f => f.inStock !== undefined)
-    .map(f => `${f.inStock ? '✅' : '❌'} ${f.emoji} **${f.name}** *(${f.type})*\n　💰 ${formatPrice(f.price)} | 💎 R$${f.robuxPrice.toLocaleString()}`)
+  const inStock = fruits.filter(f => f.inStock);
+  if (!inStock.length) return '_None in stock right now._';
+  return inStock
+    .map(f => `${getFruitEmoji(f.name)} **${f.name}** *(${f.type})*\n　💰 ${formatPrice(f.price)} | 💎 R$${f.robuxPrice.toLocaleString()}`)
     .join('\n\n');
 }
 
@@ -28,18 +29,17 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction) {
-    const guildId = interaction.guildId;
-    const stock   = getStock(guildId);
-
-    const allEntries     = [...stock.normal, ...stock.mirage];
-    const inStockFruits  = allEntries.filter(f => f.inStock);
-    const outOfStock     = allEntries.filter(f => !f.inStock);
+    const guildId    = interaction.guildId;
+    const stock      = getStock(guildId);
+    const allEntries = [...stock.normal, ...stock.mirage];
+    const inStock    = allEntries.filter(f => f.inStock);
+    const outOf      = allEntries.filter(f => !f.inStock);
 
     const fruitOptions = allEntries.slice(0, 25).map(f => ({
       label:       f.name,
-      description: `${f.name in stock.normal ? '🌍 Normal' : '🌙 Mirage'} • ${formatPrice(f.price)} • ${f.inStock ? '✅ In Stock' : '❌ Out of Stock'}`,
+      description: `${stock.normal.find(n => n.name === f.name) ? '🌍 Normal' : '🌙 Mirage'} • ${formatPrice(f.price)} • ${f.inStock ? '✅ In Stock' : '❌ Out'}`,
       value:       `${stock.normal.find(n => n.name === f.name) ? 'normal' : 'mirage'}::${f.name}`,
-      emoji:       f.emoji,
+      emoji:       getSelectEmoji(f.name),
     }));
 
     await interaction.reply({
@@ -49,20 +49,23 @@ module.exports = {
           .setDescription('Which fruit do you want to update?')
           .setColor(0xFFA500)
           .addFields(
-            { name: '✅ Currently In Stock', value: inStockFruits.map(f => `${f.emoji} ${f.name}`).join(', ') || '_None_' },
-            { name: '❌ Out of Stock',        value: outOfStock.map(f => `${f.emoji} ${f.name}`).join(', ')    || '_None_' },
+            { name: '✅ In Stock',    value: inStock.map(f => `${getFruitEmoji(f.name)} ${f.name}`).join('  ') || '_None_' },
+            { name: '❌ Out of Stock', value: outOf.map(f => `${getFruitEmoji(f.name)} ${f.name}`).join('  ')  || '_None_' },
           )
           .setFooter({ text: 'Times out in 60 seconds' }),
       ],
       components: [
         new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder().setCustomId('setstock_fruit').setPlaceholder('🍎 Pick a fruit to update...').addOptions(fruitOptions)
+          new StringSelectMenuBuilder()
+            .setCustomId('setstock_fruit')
+            .setPlaceholder('Pick a fruit to update...')
+            .addOptions(fruitOptions)
         ),
       ],
       flags: MessageFlags.Ephemeral,
     });
 
-    // ── Step 1: Wait for fruit selection ────────────────────────────────────
+    // ── Step 1: Fruit selection ───────────────────────────────────────────────
     let fruitInteraction;
     try {
       fruitInteraction = await interaction.channel.awaitMessageComponent({
@@ -79,12 +82,12 @@ module.exports = {
     const [dealer, fruitName] = fruitInteraction.values[0].split('::');
     const fruit = stock[dealer].find(f => f.name === fruitName);
 
-    // ── Step 2: In stock or not? ─────────────────────────────────────────────
+    // ── Step 2: In / Out ──────────────────────────────────────────────────────
     await fruitInteraction.update({
       embeds: [
         new EmbedBuilder()
           .setTitle('📦 Set Stock — Step 2 of 2')
-          .setDescription(`Is ${fruit.emoji} **${fruit.name}** currently in stock?`)
+          .setDescription(`Is ${getFruitEmoji(fruit.name)} **${fruit.name}** currently in stock?`)
           .setColor(0xFFA500)
           .setFooter({ text: 'Times out in 60 seconds' }),
       ],
@@ -109,24 +112,24 @@ module.exports = {
       });
     }
 
-    const inStock    = stockInteraction.customId === 'setstock_yes';
-    const wasInStock = fruit.inStock;
-    fruit.inStock    = inStock;
+    const inStockNow = stockInteraction.customId === 'setstock_yes';
+    const was        = fruit.inStock;
+    fruit.inStock    = inStockNow;
     saveStock(guildId, stock);
 
     const updated   = getStock(guildId);
     const updatedAt = new Date(updated.lastUpdated).toUTCString();
 
-    // ── Auto-create stock-alert role ─────────────────────────────────────────
+    // ── Create/ping role ──────────────────────────────────────────────────────
     let roleMention = '';
     try {
       const role = await ensureStockRole(interaction.guild, fruit.name);
       if (role) roleMention = `${role} `;
     } catch (err) {
-      console.warn('[ROLE] Could not manage role:', err.message);
+      console.warn('[ROLE]', err.message);
     }
 
-    // ── Post updated stock embed publicly ────────────────────────────────────
+    // ── Public stock embed ────────────────────────────────────────────────────
     const stockEmbed = new EmbedBuilder()
       .setTitle('📦 Blox Fruits Stock')
       .setColor(0xFFA500)
@@ -138,26 +141,26 @@ module.exports = {
       .setFooter({ text: `Last updated • ${updatedAt}` })
       .setTimestamp();
 
-    if (inStock && roleMention) {
+    if (inStockNow && roleMention) {
       await interaction.channel.send({
-        content: `📢 ${roleMention}**${fruit.name}** is now **In Stock**! Get it while it lasts! ${fruit.emoji}`,
+        content: `📢 ${roleMention}**${fruit.name}** is now **In Stock**! Get it while it lasts! ${getFruitEmoji(fruit.name)}`,
         embeds: [stockEmbed],
       });
     } else {
       await interaction.channel.send({ embeds: [stockEmbed] });
     }
 
-    // ── Private confirmation ─────────────────────────────────────────────────
+    // ── Private confirmation ──────────────────────────────────────────────────
     await stockInteraction.update({
       embeds: [
         new EmbedBuilder()
           .setTitle('✅ Stock Updated!')
-          .setColor(inStock ? 0x57F287 : 0xED4245)
+          .setColor(inStockNow ? 0x57F287 : 0xED4245)
           .addFields(
-            { name: 'Fruit',  value: `${fruit.emoji} **${fruit.name}**`,                       inline: true },
-            { name: 'Dealer', value: dealer === 'normal' ? '🌍 Normal' : '🌙 Mirage',          inline: true },
-            { name: 'Status', value: `${wasInStock ? '✅' : '❌'} → ${inStock ? '✅' : '❌'}`, inline: true },
-            { name: 'Role',   value: roleMention || '_Grant me **Manage Roles** to auto-create alert roles_', inline: false },
+            { name: 'Fruit',  value: `${getFruitEmoji(fruit.name)} **${fruit.name}**`,              inline: true },
+            { name: 'Dealer', value: dealer === 'normal' ? '🌍 Normal' : '🌙 Mirage',               inline: true },
+            { name: 'Status', value: `${was ? '✅' : '❌'} → ${inStockNow ? '✅' : '❌'}`,          inline: true },
+            { name: 'Role',   value: roleMention || '_Grant **Manage Roles** to auto-create alert roles_', inline: false },
           ),
       ],
       components: [],
