@@ -45,12 +45,14 @@ client.once(Events.ClientReady, async c => {
   console.log(`📦 Commands: ${client.commands.size}`);
   c.user.setActivity('🍎 Tracking Blox Fruits Stock', { type: 3 });
 
-  // Upload all fruit images as custom emojis to the home guild
+  // Emoji init
   const { initFruitEmojis } = require('./utils/emojiManager');
   await initFruitEmojis(c);
 
-  // Start automatic stock polling (every 30 minutes)
-  startStockPolling(c);
+  // Pull live stock immediately, then every 30 minutes
+  await runStockPoll(c);
+  setInterval(() => runStockPoll(c), 30 * 60 * 1000);
+  console.log('[STOCK] Auto-polling every 30 minutes');
 });
 
 // ── Slash commands ────────────────────────────────────────────────────────────
@@ -69,95 +71,97 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// ── Auto-stock polling ────────────────────────────────────────────────────────
-const POLL_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-let lastNormalStock = '';
-let lastMirageStock = '';
+// ── Stock polling ─────────────────────────────────────────────────────────────
+let lastNormalKey = '';
+let lastMirageKey = '';
 
-function stockKey(fruits) {
-  return fruits.map(f => f.name).sort().join(',');
+function stockKey(arr) {
+  return arr.map(f => f.name).sort().join(',');
 }
 
-async function pollStock(client) {
+async function runStockPoll(client) {
   const { fetchLiveStock, applyLiveStock } = require('./utils/stockFetcher');
-  const { getConfig } = require('./utils/configManager');
-  const { getStock }  = require('./utils/stockManager');
+  const { getConfig }   = require('./utils/configManager');
+  const { getStock }    = require('./utils/stockManager');
   const { getFruitEmoji } = require('./utils/emojiManager');
   const { EmbedBuilder } = require('discord.js');
 
   try {
     const live = await fetchLiveStock();
-    if (!live) return;
-
-    const newNormal = stockKey(live.normal);
-    const newMirage = stockKey(live.mirage);
-
-    const normalChanged = newNormal !== lastNormalStock;
-    const mirageChanged = newMirage !== lastMirageStock;
-
-    if (!normalChanged && !mirageChanged) {
-      console.log('[STOCK] No change detected');
+    if (!live) {
+      console.warn('[STOCK] Poll returned no data — will retry next interval');
       return;
     }
 
-    if (normalChanged) lastNormalStock = newNormal;
-    if (mirageChanged) lastMirageStock = newMirage;
+    const newNormal = stockKey(live.normal);
+    const newMirage = stockKey(live.mirage);
+    const normalChanged = newNormal !== lastNormalKey;
+    const mirageChanged = newMirage !== lastMirageKey;
 
-    console.log(`[STOCK] Change detected — Normal: ${normalChanged}, Mirage: ${mirageChanged}`);
+    // Always apply to every guild regardless of whether it changed
+    // (ensures guilds that just started up are synced)
+    const firstRun = !lastNormalKey && !lastMirageKey;
 
-    // Update every guild that has a stock channel configured
+    if (!normalChanged && !mirageChanged && !firstRun) {
+      console.log('[STOCK] No change — stock is current');
+      return;
+    }
+
+    lastNormalKey = newNormal;
+    lastMirageKey = newMirage;
+
+    const tags = [];
+    if (firstRun)      tags.push('🔄 Initial sync');
+    if (normalChanged && !firstRun) tags.push('🌍 Normal dealer rotated');
+    if (mirageChanged && !firstRun) tags.push('🌙 Mirage dealer rotated');
+
+    console.log(`[STOCK] ${tags.join(' | ')} — Normal: [${live.normal.map(f => f.name).join(', ')}] | Mirage: [${live.mirage.map(f => f.name).join(', ')}]`);
+
+    function buildLines(fruits) {
+      const inStock = fruits.filter(f => f.inStock);
+      if (!inStock.length) return '_None in stock._';
+      return inStock
+        .map(f => `${getFruitEmoji(f.name)} **${f.name}** *(${f.type})*\n　💰 $${f.price.toLocaleString()} | 💎 R$${f.robuxPrice.toLocaleString()}`)
+        .join('\n\n');
+    }
+
+    // Apply to every guild and post to stock channel if configured
     for (const guild of client.guilds.cache.values()) {
       try {
-        const cfg = getConfig(guild.id);
         applyLiveStock(guild.id, live);
 
+        // Only post announcement if stock changed (not on first run silent sync)
+        if (firstRun) continue;
+
+        const cfg = getConfig(guild.id);
         if (!cfg.stockChannelId) continue;
+
         const channel = guild.channels.cache.get(cfg.stockChannelId);
         if (!channel) continue;
 
-        function formatLines(fruits) {
-          const inStock = fruits.filter(f => f.inStock);
-          if (!inStock.length) return '_None in stock right now._';
-          return inStock
-            .map(f => `${getFruitEmoji(f.name)} **${f.name}** *(${f.type})*\n　💰 $${f.price.toLocaleString()} | 💎 R$${f.robuxPrice.toLocaleString()}`)
-            .join('\n\n');
-        }
-
         const updated = getStock(guild.id);
-        const tags = [];
-        if (normalChanged) tags.push('🌍 Normal dealer rotated');
-        if (mirageChanged) tags.push('🌙 Mirage dealer rotated');
 
         const embed = new EmbedBuilder()
           .setTitle('🔄 Blox Fruits Stock Update')
           .setColor(0xFFA500)
           .setDescription(`> ${tags.join(' • ')}`)
           .addFields(
-            { name: '🌍 Normal Stock', value: formatLines(updated.normal), inline: false },
-            { name: '\u200B',          value: '\u200B',                    inline: false },
-            { name: '🌙 Mirage Stock', value: formatLines(updated.mirage), inline: false },
+            { name: '🌍 Normal Stock', value: buildLines(updated.normal), inline: false },
+            { name: '\u200B',          value: '\u200B',                   inline: false },
+            { name: '🌙 Mirage Stock', value: buildLines(updated.mirage), inline: false },
           )
-          .setFooter({ text: 'Auto-fetched from fruityblox.com' })
+          .setFooter({ text: 'Auto-synced from fruityblox.com • /stock to view anytime' })
           .setTimestamp();
 
         await channel.send({ embeds: [embed] });
-        console.log(`[STOCK] Posted update to ${guild.name} → #${channel.name}`);
+        console.log(`[STOCK] Posted update → ${guild.name} #${channel.name}`);
       } catch (gErr) {
-        console.warn(`[STOCK] Error updating ${guild.name}:`, gErr.message);
+        console.warn(`[STOCK] ${guild.name}:`, gErr.message);
       }
     }
   } catch (err) {
     console.error('[STOCK] Poll error:', err.message);
   }
-}
-
-function startStockPolling(client) {
-  // Run once after 10 seconds, then every 30 minutes
-  setTimeout(() => {
-    pollStock(client);
-    setInterval(() => pollStock(client), POLL_INTERVAL_MS);
-  }, 10_000);
-  console.log('[STOCK] Auto-polling started — checks every 30 minutes');
 }
 
 // ── Keep-alive HTTP server ────────────────────────────────────────────────────

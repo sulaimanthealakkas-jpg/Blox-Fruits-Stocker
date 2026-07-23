@@ -1,10 +1,10 @@
 [
-  { "name": "Bomb",     "type": "Natural",   "rarity": "Common",    "price": 5000,    "robuxPrice": 50,   "emoji": "💣" },
+  { "name": "Rocket",   "type": "Natural",   "rarity": "Common",    "price": 5000,    "robuxPrice": 50,   "emoji": "🚀" },
   { "name": "Spike",    "type": "Natural",   "rarity": "Common",    "price": 7500,    "robuxPrice": 50,   "emoji": "🌵" },
-  { "name": "Chop",     "type": "Natural",   "rarity": "Common",    "price": 30000,   "robuxPrice": 100,  "emoji": "🪓" },
+  { "name": "Blade",    "type": "Natural",   "rarity": "Common",    "price": 30000,   "robuxPrice": 100,  "emoji": "🪓" },
   { "name": "Spring",   "type": "Natural",   "rarity": "Common",    "price": 60000,   "robuxPrice": 180,  "emoji": "🌱" },
   { "name": "Kilo",     "type": "Natural",   "rarity": "Common",    "price": 5000,    "robuxPrice": 50,   "emoji": "⚖️" },
-  { "name": "Spin",     "type": "Natural",   "rarity": "Common",    "price": 7500,    "robuxPrice": 95,   "emoji": "🌀" },
+  { "name": "Spin",     "type": "Natural",   "rarity": "Common",    "price": 7500,    "robuxPrice": 75,   "emoji": "🌀" },
   { "name": "Smoke",    "type": "Elemental", "rarity": "Common",    "price": 100000,  "robuxPrice": 250,  "emoji": "💨" },
   { "name": "Falcon",   "type": "Beast",     "rarity": "Uncommon",  "price": 300000,  "robuxPrice": 650,  "emoji": "🦅" },
   { "name": "Flame",    "type": "Elemental", "rarity": "Uncommon",  "price": 250000,  "robuxPrice": 550,  "emoji": "🔥" },
