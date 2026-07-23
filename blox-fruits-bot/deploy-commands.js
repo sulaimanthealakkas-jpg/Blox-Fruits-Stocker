@@ -25,26 +25,31 @@ for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
-  try {
-    console.log(`\n🔄 Registering ${commands.length} command(s)...`);
+  console.log(`\n🔄 Registering ${commands.length} command(s)...`);
 
-    if (GUILD_ID) {
-      // Guild-specific: instant (dev/testing)
+  // Try guild registration first (instant), fall back to global
+  if (GUILD_ID) {
+    try {
       const data = await rest.put(
         Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
         { body: commands }
       );
       console.log(`✅ Registered ${data.length} command(s) to guild ${GUILD_ID} (instant)`);
-    } else {
-      // Global: works in every server the bot is in (up to 1 hour to propagate)
-      const data = await rest.put(
-        Routes.applicationCommands(CLIENT_ID),
-        { body: commands }
-      );
-      console.log(`✅ Registered ${data.length} command(s) globally`);
+      return;
+    } catch (err) {
+      console.warn(`[WARN] Guild registration failed (${err.message}), falling back to global...`);
     }
+  }
+
+  // Global registration (takes up to 1 hour to propagate)
+  try {
+    const data = await rest.put(
+      Routes.applicationCommands(CLIENT_ID),
+      { body: commands }
+    );
+    console.log(`✅ Registered ${data.length} command(s) globally (may take up to 1 hour)`);
   } catch (err) {
-    console.error('[ERROR]', err.message);
+    console.error('[ERROR] Global registration also failed:', err.message);
     if (err.rawError) console.error('[DETAIL]', JSON.stringify(err.rawError, null, 2));
     process.exit(1);
   }

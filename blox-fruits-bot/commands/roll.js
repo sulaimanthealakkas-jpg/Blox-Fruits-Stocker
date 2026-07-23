@@ -1,7 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const allFruits        = require('../data/fruits.json');
-const { addFruit }     = require('../utils/inventoryManager');
-const { getFruitEmoji } = require('../utils/emojiManager');
+const allFruits          = require('../data/fruits.json');
+const { addFruit }       = require('../utils/inventoryManager');
+const { getFruitEmoji }  = require('../utils/emojiManager');
+const { getRollCooldownMs } = require('../utils/configManager');
 
 const RARITY_CONFIG = {
   Common:    { color: 0x95A5A6, chance: 40, stars: '⭐' },
@@ -23,29 +24,50 @@ function spinLine() {
   }).join('  •  ');
 }
 
+// userId → timestamp when cooldown expires
 const cooldowns = new Map();
-const COOLDOWN_MS = 30_000;
+
+function formatTimeLeft(ms) {
+  const totalSecs = Math.ceil(ms / 1000);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('roll')
-    .setDescription('Roll a random Blox Fruit — result is added to your inventory'),
+    .setDescription('Roll a random Blox Fruit — result added to your inventory'),
 
   async execute(interaction) {
-    const userId = interaction.user.id;
+    const userId  = interaction.user.id;
+    const guildId = interaction.guildId;
 
-    if (cooldowns.has(userId)) {
-      const remaining = Math.ceil((cooldowns.get(userId) - Date.now()) / 1000);
+    // Check cooldown
+    const expiresAt = cooldowns.get(`${guildId}:${userId}`);
+    if (expiresAt) {
+      const remaining = expiresAt - Date.now();
       if (remaining > 0) {
+        const cooldownMs = getRollCooldownMs(guildId);
+        const hours = cooldownMs / 3_600_000;
+        const label = hours < 1 ? `${hours * 60} min` : `${hours}h`;
         return interaction.reply({
-          content: `⏳ You can roll again in **${remaining}s**.`,
+          content: `⏳ You can roll again in **${formatTimeLeft(remaining)}**.\n> 🕐 Roll cooldown is set to **${label}** on this server.`,
           flags: MessageFlags.Ephemeral,
         });
       }
     }
 
-    cooldowns.set(userId, Date.now() + COOLDOWN_MS);
-    setTimeout(() => cooldowns.delete(userId), COOLDOWN_MS);
+    // Set cooldown
+    const cooldownMs = getRollCooldownMs(guildId);
+    if (cooldownMs > 0) {
+      const expires = Date.now() + cooldownMs;
+      cooldowns.set(`${guildId}:${userId}`, expires);
+      setTimeout(() => cooldowns.delete(`${guildId}:${userId}`), cooldownMs);
+    }
 
     const result = rollFruit();
     const cfg    = RARITY_CONFIG[result.rarity];
@@ -60,6 +82,9 @@ module.exports = {
 
     addFruit(interaction.guildId, userId, result);
 
+    const cooldownHours = cooldownMs / 3_600_000;
+    const nextRollLabel = cooldownMs === 0 ? 'No cooldown' : `Next roll in ${cooldownHours < 1 ? `${cooldownHours * 60} min` : `${cooldownHours}h`}`;
+
     const embed = new EmbedBuilder()
       .setTitle(`${emoji}  You rolled **${result.name}**!`)
       .setColor(cfg.color)
@@ -70,7 +95,7 @@ module.exports = {
         { name: '💰 Price',  value: `$${result.price.toLocaleString()}`,        inline: true },
         { name: '💎 Robux',  value: `R$${result.robuxPrice.toLocaleString()}`,  inline: true },
       )
-      .setFooter({ text: `Rolled by ${interaction.user.username} • Added to inventory` })
+      .setFooter({ text: `Rolled by ${interaction.user.username} • ${nextRollLabel}` })
       .setTimestamp();
 
     if (result.rarity === 'Mythical')       embed.setDescription('> 🌟 **MYTHICAL ROLL!** Incredibly rare!');
