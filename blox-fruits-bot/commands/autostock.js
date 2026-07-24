@@ -7,6 +7,7 @@ const {
 const { fetchLiveStock, applyLiveStock } = require('../utils/stockFetcher');
 const { getStock }    = require('../utils/stockManager');
 const { getFruitEmoji } = require('../utils/emojiManager');
+const { ensureStockRole } = require('../utils/roleManager');
 
 function buildLines(fruits) {
   const inStock = fruits.filter(f => f.inStock);
@@ -41,7 +42,6 @@ module.exports = {
       });
     }
 
-    // Apply to this guild
     applyLiveStock(interaction.guildId, live);
     const updated = getStock(interaction.guildId);
 
@@ -58,25 +58,39 @@ module.exports = {
 
     await interaction.editReply({ embeds: [embed] });
 
-    // Also post publicly to the stock channel if configured
     const { getConfig } = require('../utils/configManager');
     const cfg = getConfig(interaction.guildId);
     if (cfg.stockChannelId && cfg.stockChannelId !== interaction.channelId) {
       const ch = interaction.guild.channels.cache.get(cfg.stockChannelId);
       if (ch) {
+        const pingMentions = [];
+        const allInStock = [...live.normal, ...live.mirage];
+        for (const fruit of allInStock) {
+          try {
+            const role = await ensureStockRole(interaction.guild, fruit.name);
+            if (role) pingMentions.push(role.toString());
+          } catch {}
+        }
+
+        const stockEmbed = new EmbedBuilder()
+          .setTitle('📦 Blox Fruits Stock — Live Update')
+          .setColor(0xFFA500)
+          .addFields(
+            { name: '🌍 Normal Stock', value: buildLines(updated.normal) },
+            { name: '\u200B', value: '\u200B' },
+            { name: '🌙 Mirage Stock', value: buildLines(updated.mirage) },
+          )
+          .setFooter({ text: 'Synced from fruityblox.com • /fruitping to get notified' })
+          .setTimestamp();
+
+        const content = pingMentions.length
+          ? `🔔 **Stock refreshed!** ${pingMentions.join(' ')}`
+          : '';
+
         await ch.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle('📦 Blox Fruits Stock — Live Update')
-              .setColor(0xFFA500)
-              .addFields(
-                { name: '🌍 Normal Stock', value: buildLines(updated.normal) },
-                { name: '\u200B', value: '\u200B' },
-                { name: '🌙 Mirage Stock', value: buildLines(updated.mirage) },
-              )
-              .setFooter({ text: 'Synced from fruityblox.com' })
-              .setTimestamp(),
-          ],
+          content: content || undefined,
+          embeds: [stockEmbed],
+          allowedMentions: { roles: pingMentions.map(m => m.match(/\d+/)?.[0]).filter(Boolean) },
         });
       }
     }

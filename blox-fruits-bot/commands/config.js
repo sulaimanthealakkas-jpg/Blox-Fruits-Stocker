@@ -40,7 +40,6 @@ module.exports = {
     const guildId = interaction.guildId;
     const sub     = interaction.options.getSubcommand();
 
-    // ── View ──────────────────────────────────────────────────────────────────
     if (sub === 'view') {
       const cfg = getConfig(guildId);
       const hours = cfg.rollCooldownHours;
@@ -69,7 +68,6 @@ module.exports = {
       });
     }
 
-    // ── Roll Cooldown ─────────────────────────────────────────────────────────
     if (sub === 'rollcooldown') {
       const hours = interaction.options.getNumber('hours');
       setRollCooldown(guildId, hours);
@@ -91,7 +89,6 @@ module.exports = {
       });
     }
 
-    // ── Stock Channel ─────────────────────────────────────────────────────────
     if (sub === 'stockchannel') {
       const channel = interaction.options.getChannel('channel');
       setStockChannel(guildId, channel.id);

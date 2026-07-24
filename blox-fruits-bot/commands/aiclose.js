@@ -11,7 +11,6 @@ module.exports = {
     const { guild, user, channel } = interaction;
     const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.ManageChannels);
 
-    // Check this channel is an AI channel belonging to this user (or admin closing any)
     const ownerId = getAiChannelUser(guild.id, channel.id);
 
     if (!ownerId) {
@@ -36,7 +35,6 @@ module.exports = {
       ],
     });
 
-    // Clean up
     clearHistory(channel.id);
     unregisterAiChannel(guild.id, channel.id);
 

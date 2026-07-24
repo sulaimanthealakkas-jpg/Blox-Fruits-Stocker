@@ -10,7 +10,6 @@ const {
 } = require('discord.js');
 const { findUserAiChannel, registerAiChannel } = require('../utils/configManager');
 
-// Sanitise usernames for channel names (Discord allows a-z, 0-9, hyphens)
 function safeChannelName(username) {
   return username.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 20);
 }
@@ -23,7 +22,6 @@ module.exports = {
   async execute(interaction) {
     const { guild, user } = interaction;
 
-    // ── Check if user already has an AI channel ───────────────────────────────
     const existingId = findUserAiChannel(guild.id, user.id);
     if (existingId) {
       const existing = guild.channels.cache.get(existingId);
@@ -37,10 +35,8 @@ module.exports = {
           flags: MessageFlags.Ephemeral,
         });
       }
-      // Channel was deleted — fall through to create a new one
     }
 
-    // ── Show the "Start AI Session" button prompt ─────────────────────────────
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('ai_start')
@@ -72,7 +68,6 @@ module.exports = {
       flags: MessageFlags.Ephemeral,
     });
 
-    // ── Wait for button click ─────────────────────────────────────────────────
     let btn;
     try {
       btn = await interaction.channel.awaitMessageComponent({
@@ -89,10 +84,8 @@ module.exports = {
 
     await btn.update({ embeds: [new EmbedBuilder().setColor(0x5865F2).setDescription('⏳ Creating your private AI channel...')], components: [] });
 
-    // ── Create private channel ────────────────────────────────────────────────
     let aiChannel;
     try {
-      // Find or create an "AI Helpers" category for cleanliness (optional)
       let category = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name === '🤖 AI Helper');
 
       aiChannel = await guild.channels.create({
@@ -101,9 +94,7 @@ module.exports = {
         parent: category?.id ?? null,
         topic: `Private Blox Fruits AI session for ${user.username}`,
         permissionOverwrites: [
-          // @everyone cannot see it
           { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-          // The user can read & write
           {
             id: user.id,
             allow: [
@@ -112,7 +103,6 @@ module.exports = {
               PermissionsBitField.Flags.ReadMessageHistory,
             ],
           },
-          // Bot gets full control
           {
             id: guild.members.me.id,
             allow: [
@@ -137,10 +127,8 @@ module.exports = {
       });
     }
 
-    // ── Register the channel in config ────────────────────────────────────────
     registerAiChannel(guild.id, aiChannel.id, user.id);
 
-    // ── Send greeting in the new channel ──────────────────────────────────────
     const hasKey = !!process.env.OPENAI_API_KEY;
     await aiChannel.send({
       embeds: [
@@ -169,7 +157,6 @@ module.exports = {
       ],
     });
 
-    // ── Update the original reply ─────────────────────────────────────────────
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()

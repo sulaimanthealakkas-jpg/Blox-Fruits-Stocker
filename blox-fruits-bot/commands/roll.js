@@ -24,7 +24,6 @@ function spinLine() {
   }).join('  •  ');
 }
 
-// userId → timestamp when cooldown expires
 const cooldowns = new Map();
 
 function formatTimeLeft(ms) {
@@ -46,7 +45,6 @@ module.exports = {
     const userId  = interaction.user.id;
     const guildId = interaction.guildId;
 
-    // Check cooldown
     const expiresAt = cooldowns.get(`${guildId}:${userId}`);
     if (expiresAt) {
       const remaining = expiresAt - Date.now();
@@ -61,7 +59,6 @@ module.exports = {
       }
     }
 
-    // Set cooldown
     const cooldownMs = getRollCooldownMs(guildId);
     if (cooldownMs > 0) {
       const expires = Date.now() + cooldownMs;
