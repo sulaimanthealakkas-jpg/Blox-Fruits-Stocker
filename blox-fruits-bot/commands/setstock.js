@@ -1,7 +1,3 @@
-/**
- * /setstock — Admin command to manually force a live stock refresh from fruityblox.com.
- * No more button menus — the bot picks everything automatically from the real API.
- */
 const {
   SlashCommandBuilder,
   EmbedBuilder,
@@ -12,6 +8,7 @@ const { fetchLiveStock, applyLiveStock } = require('../utils/stockFetcher');
 const { getStock }      = require('../utils/stockManager');
 const { getFruitEmoji } = require('../utils/emojiManager');
 const { getConfig }     = require('../utils/configManager');
+const { ensureStockRole } = require('../utils/roleManager');
 
 function buildLines(fruits) {
   if (!fruits.length) return '_None in stock._';
@@ -46,7 +43,6 @@ module.exports = {
     applyLiveStock(interaction.guildId, live);
     const updated = getStock(interaction.guildId);
 
-    // Post public stock embed in this channel
     const publicEmbed = new EmbedBuilder()
       .setTitle('📦 Blox Fruits Stock — Refreshed')
       .setColor(0x57F287)
@@ -55,16 +51,36 @@ module.exports = {
         { name: '\u200B', value: '\u200B' },
         { name: `🌙 Mirage Dealer (${live.mirage.length} fruit${live.mirage.length !== 1 ? 's' : ''})`, value: buildLines(updated.mirage) },
       )
-      .setFooter({ text: '🟢 Live data from fruityblox.com' })
+      .setFooter({ text: '🟢 Live data from fruityblox.com • /fruitping to get notified' })
       .setTimestamp();
 
-    await interaction.channel.send({ embeds: [publicEmbed] });
+    const pingMentions = [];
+    const allInStock = [...live.normal, ...live.mirage];
+    for (const fruit of allInStock) {
+      try {
+        const role = await ensureStockRole(interaction.guild, fruit.name);
+        if (role) pingMentions.push(role.toString());
+      } catch {}
+    }
 
-    // Also post to stock channel if different
+    const content = pingMentions.length
+      ? `🔔 **Stock refreshed!** ${pingMentions.join(' ')}`
+      : '';
+
+    await interaction.channel.send({
+      content: content || undefined,
+      embeds: [publicEmbed],
+      allowedMentions: { roles: pingMentions.map(m => m.match(/\d+/)?.[0]).filter(Boolean) },
+    });
+
     const cfg = getConfig(interaction.guildId);
     if (cfg.stockChannelId && cfg.stockChannelId !== interaction.channelId) {
       const ch = interaction.guild.channels.cache.get(cfg.stockChannelId);
-      if (ch) await ch.send({ embeds: [publicEmbed] }).catch(() => {});
+      if (ch) await ch.send({
+        content: content || undefined,
+        embeds: [publicEmbed],
+        allowedMentions: { roles: pingMentions.map(m => m.match(/\d+/)?.[0]).filter(Boolean) },
+      }).catch(() => {});
     }
 
     return interaction.editReply({

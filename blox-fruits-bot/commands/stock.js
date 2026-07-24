@@ -56,18 +56,15 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply();
 
-    // ── Fetch live from fruityblox.com ────────────────────────────────────────
     let normal, mirage, isLive = false;
 
     const live = await fetchLiveStock();
     if (live) {
-      // Apply to disk so everything stays in sync
       applyLiveStock(interaction.guildId, live);
       normal = live.normal;
       mirage = live.mirage;
       isLive = true;
     } else {
-      // Fallback: use last cached guild stock
       const cached = getStock(interaction.guildId);
       normal = cached.normal.filter(f => f.inStock);
       mirage = cached.mirage.filter(f => f.inStock);
@@ -86,7 +83,6 @@ module.exports = {
       await btn.deferUpdate();
 
       if (btn.customId === 'stock_refresh') {
-        // Re-fetch live on refresh button
         const fresh = await fetchLiveStock();
         if (fresh) {
           applyLiveStock(interaction.guildId, fresh);

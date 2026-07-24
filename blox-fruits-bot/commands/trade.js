@@ -68,7 +68,7 @@ module.exports = {
 
     collector.on('collect', async btn => {
       const parts = btn.customId.split('_');
-      const side  = parts[1]; // 'w' or 'l'
+      const side  = parts[1];
       const v     = votes.get(message.id);
 
       if (side === 'w') {
