@@ -1,167 +1,184 @@
 const {
   Events,
   EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  StringSelectMenuBuilder,
   ChannelType,
   PermissionFlagsBits,
-  MessageFlags,
 } = require('discord.js');
 
-const allFruits                         = require('../data/fruits.json');
-const { buildGuildStock }               = require('../utils/stockManager');
-const { ensureStockRoles }              = require('../utils/roleManager');
-const { getFruitEmoji, getSelectEmoji } = require('../utils/emojiManager');
+const { fetchLiveStock, applyLiveStock } = require('../utils/stockFetcher');
+const { getStock }      = require('../utils/stockManager');
+const { getFruitEmoji }  = require('../utils/emojiManager');
+const { setStockChannel, getConfig } = require('../utils/configManager');
 
-const NORMAL_FRUITS = allFruits.filter(f => ['Common', 'Uncommon', 'Rare'].includes(f.rarity));
-const MIRAGE_FRUITS = allFruits.filter(f => ['Legendary', 'Mythical'].includes(f.rarity));
+const CATEGORY_NAME  = 'Blox Fruits Stock';
+const CHANNEL_NAME   = 'stock-updates';
 
-const toOption = f => ({
-  label:       f.name,
-  description: `${f.rarity} ${f.type} • $${f.price.toLocaleString()}`,
-  value:       f.name,
-  emoji:       getSelectEmoji(f.name),
-});
-
-function formatInStock(fruits, inStockNames) {
-  const list = fruits.filter(f => inStockNames.includes(f.name));
-  if (!list.length) return '_None_';
-  return list.map(f => `${getFruitEmoji(f.name)} ${f.name}`).join('\n');
+function buildLines(fruits) {
+  const inStock = fruits.filter(f => f.inStock);
+  if (!inStock.length) return '_None in stock right now._';
+  return inStock
+    .map(f =>
+      `${getFruitEmoji(f.name)} **${f.name}** *(${f.type})*\n　💰 $${f.price.toLocaleString()} | 💎 R$${f.robuxPrice.toLocaleString()}`
+    )
+    .join('\n\n');
 }
 
 module.exports = {
   name: Events.GuildCreate,
 
   async execute(guild) {
-    const { hasStock } = require('../utils/stockManager');
-    if (hasStock(guild.id)) return;
+    console.log(`[SETUP] Joined guild "${guild.name}" (${guild.id}) — starting auto-setup`);
 
-    const channel =
+    // ── Permission checks ──────────────────────────────────────────────────
+    const me = guild.members.me;
+    if (!me) {
+      console.warn('[SETUP] Could not resolve bot member — aborting');
+      return;
+    }
+
+    const canManageChannels = me.permissions.has(PermissionFlagsBits.ManageChannels);
+    const canSendMessages   = me.permissions.has(PermissionFlagsBits.SendMessages);
+
+    // ── Decide which channel to send the welcome / status message to ────────
+    const welcomeChannel =
       guild.systemChannel ??
       guild.channels.cache
         .filter(c =>
           c.type === ChannelType.GuildText &&
-          c.permissionsFor(guild.members.me)?.has([PermissionFlagsBits.SendMessages, PermissionFlagsBits.ViewChannel])
+          c.permissionsFor(me)?.has([PermissionFlagsBits.SendMessages, PermissionFlagsBits.ViewChannel])
         )
         .sort((a, b) => a.rawPosition - b.rawPosition)
         .first();
 
-    if (!channel) return;
+    // ── Helper to post a status update in the welcome channel ───────────────
+    async function postStatus(title, description, color) {
+      if (!welcomeChannel) return;
+      try {
+        await welcomeChannel.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle(title)
+              .setColor(color)
+              .setDescription(description)
+              .setFooter({ text: 'Blox Fruits Stock Bot' })
+              .setTimestamp(),
+          ],
+        });
+      } catch (e) {
+        console.warn('[SETUP] Could not post status:', e.message);
+      }
+    }
 
-    const msg = await channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle('👋 Blox Fruits Stock Bot — Setup')
-          .setColor(0xFFA500)
-          .setDescription(
-            'Thanks for adding me! Let\'s set up your server\'s fruit stock.\n\n' +
-            '**Two quick steps:**\n' +
-            '🌍 Pick which **Normal dealer** fruits are currently in stock\n' +
-            '🌙 Pick which **Mirage dealer** fruits are currently in stock\n\n' +
-            '_Only members with **Manage Server** can complete setup._'
+    // ── Create or find the category ─────────────────────────────────────────
+    let category = guild.channels.cache.find(
+      c => c.type === ChannelType.GuildCategory && c.name === CATEGORY_NAME
+    );
+
+    if (!category && canManageChannels) {
+      try {
+        category = await guild.channels.create({
+          name: CATEGORY_NAME,
+          type: ChannelType.GuildCategory,
+          reason: 'Blox Fruits Stock Bot — auto-setup',
+        });
+        console.log(`[SETUP] Created category "${CATEGORY_NAME}" in ${guild.name}`);
+      } catch (err) {
+        console.warn(`[SETUP] Could not create category: ${err.message}`);
+      }
+    }
+
+    // ── Create or find the stock-updates text channel ────────────────────────
+    let stockChannel =
+      category
+        ? guild.channels.cache.find(
+            c => c.type === ChannelType.GuildText && c.parentId === category.id && c.name === CHANNEL_NAME
           )
-          .setFooter({ text: 'Wizard expires in 10 minutes' }),
-      ],
-      components: [
-        new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('setup_start').setLabel('🚀 Set Up Stock Now').setStyle(ButtonStyle.Primary)
-        ),
-      ],
-    });
+        : guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === CHANNEL_NAME);
 
-    let normalInStock = [];
-    let mirageInStock = [];
-    const collector = msg.createMessageComponentCollector({ time: 10 * 60 * 1000 });
-
-    collector.on('collect', async i => {
-      if (!i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-        return i.reply({ content: '🔒 Only members with **Manage Server** can run setup.', flags: MessageFlags.Ephemeral });
-      }
-
-      if (i.customId === 'setup_start') {
-        await i.update({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle('🌍 Step 1 of 2 — Normal Dealer')
-              .setDescription('Select all fruits **currently in stock** at the Normal dealer.\nLeave blank if none are in stock.')
-              .setColor(0x2ECC71)
-              .setFooter({ text: 'Step 1 of 2' }),
-          ],
-          components: [
-            new ActionRowBuilder().addComponents(
-              new StringSelectMenuBuilder()
-                .setCustomId('setup_normal')
-                .setPlaceholder('Pick fruits in stock at the Normal dealer…')
-                .setMinValues(0)
-                .setMaxValues(NORMAL_FRUITS.length)
-                .addOptions(NORMAL_FRUITS.map(toOption))
-            ),
-          ],
+    if (!stockChannel && canManageChannels) {
+      try {
+        stockChannel = await guild.channels.create({
+          name: CHANNEL_NAME,
+          type: ChannelType.GuildText,
+          parent: category?.id ?? null,
+          topic: 'Live Blox Fruits stock — auto-updated every 30 minutes',
+          reason: 'Blox Fruits Stock Bot — auto-setup',
         });
+        console.log(`[SETUP] Created channel #${CHANNEL_NAME} in ${guild.name}`);
+      } catch (err) {
+        console.warn(`[SETUP] Could not create stock channel: ${err.message}`);
       }
+    }
 
-      else if (i.customId === 'setup_normal') {
-        normalInStock = i.values;
-        await i.update({
+    // ── Save the stock channel ID to config so auto-polling posts here ───────
+    if (stockChannel) {
+      setStockChannel(guild.id, stockChannel.id);
+      console.log(`[SETUP] Stock channel saved to config: #${stockChannel.name} (${stockChannel.id})`);
+    }
+
+    // ── Fetch live stock from fruityblox.com ─────────────────────────────────
+    let live = null;
+    try {
+      live = await fetchLiveStock();
+    } catch (err) {
+      console.warn('[SETUP] Live stock fetch failed:', err.message);
+    }
+
+    if (live) {
+      applyLiveStock(guild.id, live);
+      console.log(`[SETUP] Live stock applied to ${guild.id}`);
+    } else {
+      console.warn('[SETUP] Could not fetch live stock — guild will use cached/default stock');
+    }
+
+    const stock = getStock(guild.id);
+
+    // ── Post the initial stock embed in the stock channel ────────────────────
+    if (stockChannel) {
+      try {
+        await stockChannel.send({
           embeds: [
             new EmbedBuilder()
-              .setTitle('🌙 Step 2 of 2 — Mirage Dealer')
-              .setDescription('Now select all fruits **currently in stock** at the Mirage dealer.\nLeave blank if none are available.')
-              .setColor(0x9B59B6)
-              .setFooter({ text: 'Step 2 of 2 • Almost done!' }),
-          ],
-          components: [
-            new ActionRowBuilder().addComponents(
-              new StringSelectMenuBuilder()
-                .setCustomId('setup_mirage')
-                .setPlaceholder('Pick fruits in stock at the Mirage dealer…')
-                .setMinValues(0)
-                .setMaxValues(MIRAGE_FRUITS.length)
-                .addOptions(MIRAGE_FRUITS.map(toOption))
-            ),
-          ],
-        });
-      }
-
-      else if (i.customId === 'setup_mirage') {
-        mirageInStock = i.values;
-        collector.stop('done');
-        await i.deferUpdate();
-
-        buildGuildStock(guild.id, normalInStock, mirageInStock);
-        const allInStock = [...normalInStock, ...mirageInStock];
-
-        let rolesCreated = 0;
-        if (guild.members.me?.permissions.has(PermissionFlagsBits.ManageRoles) && allInStock.length) {
-          const results = await ensureStockRoles(guild, allInStock);
-          rolesCreated  = results.length;
-        }
-
-        await i.editReply({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle('✅ Stock Setup Complete!')
-              .setColor(0x57F287)
-              .addFields(
-                { name: '🌍 In Stock — Normal', value: formatInStock(NORMAL_FRUITS, normalInStock), inline: true },
-                { name: '🌙 In Stock — Mirage', value: formatInStock(MIRAGE_FRUITS, mirageInStock), inline: true },
-              )
+              .setTitle('📦 Blox Fruits Stock — Live')
+              .setColor(live ? 0x57F287 : 0xFFA500)
               .setDescription(
-                rolesCreated > 0
-                  ? `📢 **${rolesCreated}** stock-alert role(s) created! Members can self-assign them to get pinged when a fruit restocks.\n\nUse **/setstock** to update, **/stock** to view.`
-                  : 'Stock saved! Use **/setstock** to update and **/stock** to view.\n\n_Grant **Manage Roles** to auto-create stock-alert roles._'
-              ),
+                live
+                  ? '🟢 **Live stock synced from fruityblox.com**\nThis channel updates automatically every 30 minutes.'
+                  : '🟡 **Cached stock** — will sync live on the next poll cycle.'
+              )
+              .addFields(
+                { name: `🌍 Normal Dealer`, value: buildLines(stock.normal), inline: false },
+                { name: '\u200B', value: '\u200B', inline: false },
+                { name: `🌙 Mirage Dealer`, value: buildLines(stock.mirage), inline: false },
+              )
+              .setFooter({ text: 'Auto-synced from fruityblox.com • Use /stock to view anytime' })
+              .setTimestamp(),
           ],
-          components: [],
         });
-        console.log(`[SETUP] "${guild.name}" completed setup — ${allInStock.length} in stock, ${rolesCreated} roles.`);
+        console.log(`[SETUP] Posted initial stock in #${stockChannel.name}`);
+      } catch (err) {
+        console.warn('[SETUP] Could not post stock in channel:', err.message);
       }
-    });
+    }
 
-    collector.on('end', (_, reason) => {
-      if (reason !== 'done') msg.edit({ components: [] }).catch(() => {});
-    });
+    // ── Post a welcome / summary message in the system or first channel ──────
+    const channelMention = stockChannel ? `${stockChannel}` : '**#stock-updates** (could not create — check my permissions)';
+
+    await postStatus(
+      '👋 Blox Fruits Stock Bot — Setup Complete!',
+      canManageChannels
+        ? `I've set everything up for you:\n\n` +
+          `📂 Created category **${CATEGORY_NAME}**\n` +
+          `📦 Created channel ${channelMention}\n` +
+          `🔄 Stock is now **live-synced** from fruityblox.com every 30 minutes\n\n` +
+          `Use \`/stock\` to view stock anytime, \`/config\` to change settings.\n` +
+          `Use \`/help\` to see all commands.`
+        : `I don't have **Manage Channels** permission, so I couldn't create a stock channel.\n\n` +
+          `Please grant me **Manage Channels** and re-invite, or run \`/config stockchannel\` to set one up manually.\n\n` +
+          `Use \`/stock\` to view stock anytime, \`/help\` to see all commands.`,
+      canManageChannels ? 0x57F287 : 0xFFA500,
+    );
+
+    console.log(`[SETUP] "${guild.name}" setup complete`);
   },
 };
