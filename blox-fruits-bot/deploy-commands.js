@@ -27,30 +27,29 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   console.log(`\n🔄 Registering ${commands.length} command(s)...`);
 
-  // Try guild registration first (instant), fall back to global
+  // Register globally first so ALL servers get the commands
+  try {
+    const data = await rest.put(
+      Routes.applicationCommands(CLIENT_ID),
+      { body: commands }
+    );
+    console.log(`✅ Registered ${data.length} command(s) globally (may take up to 1 hour to appear in all servers)`);
+  } catch (err) {
+    console.error('[ERROR] Global registration failed:', err.message);
+    if (err.rawError) console.error('[DETAIL]', JSON.stringify(err.rawError, null, 2));
+    process.exit(1);
+  }
+
+  // Also register to the dev guild for instant testing if GUILD_ID is set
   if (GUILD_ID) {
     try {
       const data = await rest.put(
         Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
         { body: commands }
       );
-      console.log(`✅ Registered ${data.length} command(s) to guild ${GUILD_ID} (instant)`);
-      return;
+      console.log(`✅ Also registered ${data.length} command(s) to dev guild ${GUILD_ID} (instant)`);
     } catch (err) {
-      console.warn(`[WARN] Guild registration failed (${err.message}), falling back to global...`);
+      console.warn(`[WARN] Dev guild registration failed: ${err.message}`);
     }
-  }
-
-  // Global registration (takes up to 1 hour to propagate)
-  try {
-    const data = await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
-      { body: commands }
-    );
-    console.log(`✅ Registered ${data.length} command(s) globally (may take up to 1 hour)`);
-  } catch (err) {
-    console.error('[ERROR] Global registration also failed:', err.message);
-    if (err.rawError) console.error('[DETAIL]', JSON.stringify(err.rawError, null, 2));
-    process.exit(1);
   }
 })();
