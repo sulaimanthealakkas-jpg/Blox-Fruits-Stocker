@@ -126,14 +126,25 @@ async function runStockPoll(client) {
       return;
     }
 
+    // Capture which fruits were in stock BEFORE the update (for ping logic)
+    const previousNormalNames = new Set(lastNormalKey ? lastNormalKey.split(',') : []);
+    const previousMirageNames = new Set(lastMirageKey ? lastMirageKey.split(',') : []);
+
     lastNormalKey = newNormalKey;
     lastMirageKey = newMirageKey;
+
+    // Fruits that are NEW in stock this cycle (weren't in stock before)
+    const newNormalFruits = live.normal.filter(f => !previousNormalNames.has(f.name));
+    const newMirageFruits = live.mirage.filter(f => !previousMirageNames.has(f.name));
 
     // Collect ALL known guild IDs (cache + disk)
     const guildIds = allKnownGuildIds(client);
     console.log(`[STOCK] ${firstRun ? 'Initial sync' : 'Change detected'} — applying to ${guildIds.length} guild(s)`);
     console.log(`[STOCK] Normal: [${live.normal.map(f => f.name).join(', ')}]`);
     console.log(`[STOCK] Mirage: [${live.mirage.map(f => f.name).join(', ')}]`);
+    if (!firstRun && (newNormalFruits.length || newMirageFruits.length)) {
+      console.log(`[STOCK] New in stock — Normal: [${newNormalFruits.map(f => f.name).join(', ')}] Mirage: [${newMirageFruits.map(f => f.name).join(', ')}]`);
+    }
 
     function buildLines(fruits) {
       const inStock = fruits.filter(f => f.inStock);
@@ -168,6 +179,22 @@ async function runStockPoll(client) {
         if (mirageChanged) tags.push('🌙 Mirage dealer rotated');
 
         const updated = getStock(guildId);
+
+        // ── Build ping mentions for newly-in-stock fruits ────────────────────
+        const pingMentions = [];
+        if (!firstRun && (newNormalFruits.length || newMirageFruits.length)) {
+          const { ensureStockRole } = require('./utils/roleManager');
+          const allNewFruits = [...newNormalFruits, ...newMirageFruits];
+          for (const fruit of allNewFruits) {
+            try {
+              const role = await ensureStockRole(guild, fruit.name);
+              if (role) pingMentions.push(role.toString());
+            } catch (e) {
+              console.warn(`[STOCK] Could not ensure role for ${fruit.name}:`, e.message);
+            }
+          }
+        }
+
         const embed = new EmbedBuilder()
           .setTitle('🔄 Blox Fruits Stock Update')
           .setColor(0xFFA500)
@@ -177,11 +204,15 @@ async function runStockPoll(client) {
             { name: '\u200B',          value: '\u200B',                   inline: false },
             { name: '🌙 Mirage Stock', value: buildLines(updated.mirage), inline: false },
           )
-          .setFooter({ text: 'Auto-synced from fruityblox.com • /stock to view anytime' })
+          .setFooter({ text: 'Auto-synced from fruityblox.com • /stock to view anytime • /fruitping to get notified' })
           .setTimestamp();
 
-        await channel.send({ embeds: [embed] });
-        console.log(`[STOCK] 📢 Posted to ${guild.name} → #${channel.name}`);
+        const content = pingMentions.length
+          ? `🔔 **New fruit in stock!** ${pingMentions.join(' ')}`
+          : '';
+
+        await channel.send({ content: content || undefined, embeds: [embed], allowedMentions: { roles: pingMentions.map(m => m.match(/\d+/)?.[0]).filter(Boolean) } });
+        console.log(`[STOCK] 📢 Posted to ${guild.name} → #${channel.name}${pingMentions.length ? ` (pinged ${pingMentions.length} role(s))` : ''}`);
       } catch (gErr) {
         console.warn(`[STOCK] Guild ${guildId} error:`, gErr.message);
       }
