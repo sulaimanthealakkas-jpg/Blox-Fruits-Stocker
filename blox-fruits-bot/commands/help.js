@@ -11,8 +11,15 @@ module.exports = {
       .setColor(0x7C3AED)
       .addFields(
         { name: '`/stock`',      value: 'View fruit stock with **[📋 All] [🌍 Normal] [🌙 Mirage]** buttons.' },
-        { name: '`/setstock`',   value: 'Update a fruit\'s stock status step-by-step. *(Requires Manage Server)*' },
+        { name: '`/fruitping`',  value: 'Choose which fruits to get pinged for — notified the moment they appear in stock.' },
+        { name: '`/setstock`',   value: 'Force an immediate stock refresh from fruityblox.com. *(Requires Manage Server)*' },
+        { name: '`/autostock`',  value: 'Manually pull the latest real stock from fruityblox.com. *(Requires Manage Server)*' },
+        { name: '`/config`',     value: 'View or change bot settings (stock channel, roll cooldown). *(Requires Manage Server)*' },
+        { name: '`/minigame`',   value: 'Play Blox Fruits mini games: guess price, quiz, higher/lower, trivia.' },
+        { name: '`/ai`',         value: 'Open a private AI-powered Blox Fruits helper channel.' },
+        { name: '`/aiclose`',    value: 'Close and delete your private AI helper channel.' },
         { name: '`/roll`',       value: 'Roll a random fruit with animated spin. Result saved to your inventory. 30s cooldown.' },
+        { name: '`/wl`',        value: 'Evaluate a trade — tells you if it\'s a **✅ W** or **❌ L** with value comparison and percentage.' },
         { name: '`/trade`',      value: 'Post a trade and let the server vote **✅ W** or **❌ L**.' },
         { name: '`/inventory`',  value: 'View your fruit collection, sorted by rarity. Check others with `/inventory @user`.' },
         { name: '`/additem`',    value: 'Add any fruit to your inventory using rarity filter buttons + dropdown.' },
