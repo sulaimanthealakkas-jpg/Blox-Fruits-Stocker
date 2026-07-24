@@ -86,10 +86,6 @@ function stockKey(arr) {
   return arr.map(f => f.name).sort().join(',');
 }
 
-/** Returns all guild IDs the bot knows about:
- *  - every guild in client.guilds.cache
- *  - every folder that already exists in data/guilds/ (offline or evicted guilds)
- */
 function allKnownGuildIds(client) {
   const ids = new Set(client.guilds.cache.keys());
   const guildsDir = path.join(__dirname, 'data', 'guilds');
@@ -126,14 +122,22 @@ async function runStockPoll(client) {
       return;
     }
 
+    const previousNormalNames = new Set(lastNormalKey ? lastNormalKey.split(',') : []);
+    const previousMirageNames = new Set(lastMirageKey ? lastMirageKey.split(',') : []);
+
     lastNormalKey = newNormalKey;
     lastMirageKey = newMirageKey;
 
-    // Collect ALL known guild IDs (cache + disk)
+    const newNormalFruits = live.normal.filter(f => !previousNormalNames.has(f.name));
+    const newMirageFruits = live.mirage.filter(f => !previousMirageNames.has(f.name));
+
     const guildIds = allKnownGuildIds(client);
     console.log(`[STOCK] ${firstRun ? 'Initial sync' : 'Change detected'} — applying to ${guildIds.length} guild(s)`);
     console.log(`[STOCK] Normal: [${live.normal.map(f => f.name).join(', ')}]`);
     console.log(`[STOCK] Mirage: [${live.mirage.map(f => f.name).join(', ')}]`);
+    if (!firstRun && (newNormalFruits.length || newMirageFruits.length)) {
+      console.log(`[STOCK] New in stock — Normal: [${newNormalFruits.map(f => f.name).join(', ')}] Mirage: [${newMirageFruits.map(f => f.name).join(', ')}]`);
+    }
 
     function buildLines(fruits) {
       const inStock = fruits.filter(f => f.inStock);
@@ -147,15 +151,13 @@ async function runStockPoll(client) {
 
     for (const guildId of guildIds) {
       try {
-        // Apply live stock to disk — works for every guild ID, even if not in cache
         applyLiveStock(guildId, live);
         console.log(`[STOCK] ✅ Applied to guild ${guildId}`);
 
-        // Only post a Discord announcement if stock actually changed (not first-run silent sync)
         if (firstRun) continue;
 
         const guild = client.guilds.cache.get(guildId);
-        if (!guild) continue; // guild is offline or evicted from cache
+        if (!guild) continue;
 
         const cfg = getConfig(guildId);
         if (!cfg.stockChannelId) continue;
@@ -168,6 +170,21 @@ async function runStockPoll(client) {
         if (mirageChanged) tags.push('🌙 Mirage dealer rotated');
 
         const updated = getStock(guildId);
+
+        const pingMentions = [];
+        if (!firstRun && (newNormalFruits.length || newMirageFruits.length)) {
+          const { ensureStockRole } = require('./utils/roleManager');
+          const allNewFruits = [...newNormalFruits, ...newMirageFruits];
+          for (const fruit of allNewFruits) {
+            try {
+              const role = await ensureStockRole(guild, fruit.name);
+              if (role) pingMentions.push(role.toString());
+            } catch (e) {
+              console.warn(`[STOCK] Could not ensure role for ${fruit.name}:`, e.message);
+            }
+          }
+        }
+
         const embed = new EmbedBuilder()
           .setTitle('🔄 Blox Fruits Stock Update')
           .setColor(0xFFA500)
@@ -177,11 +194,15 @@ async function runStockPoll(client) {
             { name: '\u200B',          value: '\u200B',                   inline: false },
             { name: '🌙 Mirage Stock', value: buildLines(updated.mirage), inline: false },
           )
-          .setFooter({ text: 'Auto-synced from fruityblox.com • /stock to view anytime' })
+          .setFooter({ text: 'Auto-synced from fruityblox.com • /stock to view anytime • /fruitping to get notified' })
           .setTimestamp();
 
-        await channel.send({ embeds: [embed] });
-        console.log(`[STOCK] 📢 Posted to ${guild.name} → #${channel.name}`);
+        const content = pingMentions.length
+          ? `🔔 **New fruit in stock!** ${pingMentions.join(' ')}`
+          : '';
+
+        await channel.send({ content: content || undefined, embeds: [embed], allowedMentions: { roles: pingMentions.map(m => m.match(/\d+/)?.[0]).filter(Boolean) } });
+        console.log(`[STOCK] 📢 Posted to ${guild.name} → #${channel.name}${pingMentions.length ? ` (pinged ${pingMentions.length} role(s))` : ''}`);
       } catch (gErr) {
         console.warn(`[STOCK] Guild ${guildId} error:`, gErr.message);
       }

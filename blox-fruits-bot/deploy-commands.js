@@ -27,7 +27,6 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   console.log(`\n🔄 Registering ${commands.length} command(s)...`);
 
-  // Try guild registration first (instant), fall back to global
   if (GUILD_ID) {
     try {
       const data = await rest.put(
@@ -41,7 +40,6 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
     }
   }
 
-  // Global registration (takes up to 1 hour to propagate)
   try {
     const data = await rest.put(
       Routes.applicationCommands(CLIENT_ID),
