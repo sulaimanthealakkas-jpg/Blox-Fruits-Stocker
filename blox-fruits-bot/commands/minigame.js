@@ -9,7 +9,6 @@ const {
 const allFruits         = require('../data/fruits.json');
 const { getFruitEmoji } = require('../utils/emojiManager');
 
-// ── helpers ────────────────────────────────────────────────────────────────────
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
 
@@ -17,9 +16,6 @@ function rarityColor(rarity) {
   return { Common: 0x95A5A6, Uncommon: 0x2ECC71, Rare: 0x3498DB, Legendary: 0xF39C12, Mythical: 0xE74C3C }[rarity] || 0xFFA500;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GAME 1: Guess the Price
-// ─────────────────────────────────────────────────────────────────────────────
 async function playGuessPrice(interaction) {
   const fruit = rand(allFruits);
   const emoji = getFruitEmoji(fruit.name);
@@ -76,9 +72,6 @@ async function playGuessPrice(interaction) {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GAME 2: Fruit Quiz (4-button multiple choice)
-// ─────────────────────────────────────────────────────────────────────────────
 const QUIZ_QUESTIONS = [
   (f) => ({
     question: `What **rarity** is ${getFruitEmoji(f.name)} **${f.name}**?`,
@@ -93,7 +86,6 @@ const QUIZ_QUESTIONS = [
   (f) => {
     const others = shuffle(allFruits.filter(x => x.name !== f.name)).slice(0, 3);
     const choices = shuffle([f, ...others]);
-    const prices  = choices.map(x => x.price);
     return {
       question: `Which fruit costs **$${f.price.toLocaleString()}** Beli?`,
       answer:   f.name,
@@ -116,7 +108,6 @@ async function playQuiz(interaction) {
   const template = rand(QUIZ_QUESTIONS)(fruit);
   const { question, answer, choices } = template;
 
-  const STYLE_MAP = { A: ButtonStyle.Primary, B: ButtonStyle.Primary, C: ButtonStyle.Primary, D: ButtonStyle.Primary };
   const labels    = ['A', 'B', 'C', 'D'];
 
   const row = new ActionRowBuilder().addComponents(
@@ -160,7 +151,6 @@ async function playQuiz(interaction) {
   const chosen    = choices[chosenIdx];
   const correct   = chosen === answer;
 
-  // Rebuild row showing correct/wrong
   const revealRow = new ActionRowBuilder().addComponents(
     ...choices.slice(0, 4).map((c, i) => {
       const isCorrect = c === answer;
@@ -191,9 +181,6 @@ async function playQuiz(interaction) {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GAME 3: Higher or Lower
-// ─────────────────────────────────────────────────────────────────────────────
 async function playHigherLower(interaction) {
   const [fruitA, fruitB] = shuffle(allFruits).slice(0, 2);
   const emojiA = getFruitEmoji(fruitA.name);
@@ -259,9 +246,6 @@ async function playHigherLower(interaction) {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GAME 4: Fruit Facts Trivia
-// ─────────────────────────────────────────────────────────────────────────────
 const FUN_FACTS = [
   { q: 'Which fruit is the rarest and most expensive to buy?',          a: 'Leopard',  choices: ['Dragon', 'Kitsune', 'Leopard', 'Dough'] },
   { q: 'Which fruit is considered the best for grinding in Blox Fruits?', a: 'Buddha',   choices: ['Buddha', 'Flame', 'Dragon', 'Light'] },
@@ -341,9 +325,6 @@ async function playTrivia(interaction) {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Slash command definition
-// ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('minigame')

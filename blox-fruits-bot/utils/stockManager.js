@@ -25,22 +25,11 @@ function saveStock(guildId, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
 
-/** Returns true if the guild already has a custom stock file. */
 function hasStock(guildId) {
   return fs.existsSync(guildStockPath(guildId));
 }
 
-/**
- * Build and save a guild's stock from two arrays of selected fruit names.
- * Pulls full fruit data (price, type, emoji) from fruits.json.
- * @param {string}   guildId
- * @param {string[]} normalNames  — fruits chosen for the Normal dealer
- * @param {string[]} mirageNames  — fruits chosen for the Mirage dealer
- * @param {string[]} inStockNormal — subset of normalNames currently in stock
- * @param {string[]} inStockMirage — subset of mirageNames currently in stock
- */
 function buildGuildStock(guildId, inStockNormal, inStockMirage) {
-  // Pool: use ALL fruits that belong to each dealer tier
   const normalPool  = allFruits.filter(f => ['Common', 'Uncommon', 'Rare'].includes(f.rarity));
   const miragePool  = allFruits.filter(f => ['Legendary', 'Mythical'].includes(f.rarity));
 

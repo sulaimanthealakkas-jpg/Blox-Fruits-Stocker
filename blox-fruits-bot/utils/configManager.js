@@ -6,7 +6,7 @@ const DATA_DIR = path.join(__dirname, '..', 'data', 'guilds');
 const DEFAULTS = {
   rollCooldownHours: 2,
   stockChannelId:    null,
-  aiChannels:        {},   // channelId → userId
+  aiChannels:        {},
 };
 
 function configPath(guildId) {
@@ -45,8 +45,6 @@ function getRollCooldownMs(guildId) {
   return (cfg.rollCooldownHours || 2) * 60 * 60 * 1000;
 }
 
-// ── AI Channel helpers ────────────────────────────────────────────────────────
-
 function registerAiChannel(guildId, channelId, userId) {
   const cfg = getConfig(guildId);
   if (!cfg.aiChannels) cfg.aiChannels = {};
@@ -69,7 +67,6 @@ function isAiChannel(guildId, channelId) {
   return getAiChannelUser(guildId, channelId) !== null;
 }
 
-/** Returns the existing AI channel ID for a user in a guild, or null. */
 function findUserAiChannel(guildId, userId) {
   const cfg = getConfig(guildId);
   if (!cfg.aiChannels) return null;
