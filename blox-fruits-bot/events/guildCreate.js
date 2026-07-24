@@ -150,8 +150,8 @@ module.exports = {
               )
               .setDescription(
                 rolesCreated > 0
-                  ? `📢 **${rolesCreated}** stock-alert role(s) created! Members can self-assign them to get pinged when a fruit restocks.\n\nUse **/setstock** to update, **/stock** to view.`
-                  : 'Stock saved! Use **/setstock** to update and **/stock** to view.\n\n_Grant **Manage Roles** to auto-create stock-alert roles._'
+                  ? `📢 **${rolesCreated}** stock-alert role(s) created! Members can use **/fruitping** to choose which fruits to get pinged for.\n\nUse **/setstock** to update, **/stock** to view.`
+                  : 'Stock saved! Use **/setstock** to update, **/stock** to view.\n\nGrant **Manage Roles** to auto-create stock-alert roles. Members can use **/fruitping** to subscribe.'
               ),
           ],
           components: [],
